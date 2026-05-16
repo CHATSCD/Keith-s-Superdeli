@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keith's Superdeli</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ===== APP HEADER ===== -->
+<header id="app-header">
+  <div class="header-inner">
+    <div class="app-brand">
+      <div class="logo-mark">KS</div>
+      <h1>Keith's Superdeli <span>F&amp;B Operations</span></h1>
+    </div>
+    <div id="store-badge">Loading...</div>
+  </div>
+</header>
+
+<!-- ===== TAB NAV (hidden for coordinator view) ===== -->
+<nav id="tab-nav" style="display:none">
+  <div class="tab-nav-inner">
+    <button class="tab-btn" data-module="deli">Deli Pro</button>
+    <button class="tab-btn" data-module="inspection">Inspection</button>
+    <button class="tab-btn" data-module="logs">Cleaning Logs</button>
+  </div>
+</nav>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main id="app-main">
+
+  <!-- No store message -->
+  <div id="no-store-msg" class="empty-state" style="display:none">
+    <div style="font-size:48px;margin-bottom:12px">&#128203;</div>
+    <h2 style="color:var(--navy);margin-bottom:8px">No Store Selected</h2>
+    <p>Add a store number to the URL to get started.</p>
+    <p style="margin-top:12px">
+      Example: <code style="background:var(--gray);padding:2px 8px;border-radius:4px">/?store=107</code>
+    </p>
+    <p style="margin-top:8px">
+      Coordinator view: <code style="background:var(--gray);padding:2px 8px;border-radius:4px">/?view=coordinator</code>
+    </p>
+  </div>
+
+  <!-- Unknown store message -->
+  <div id="unknown-store-msg" class="empty-state" style="display:none">
+    <div style="font-size:48px;margin-bottom:12px">&#10067;</div>
+    <h2 style="color:var(--navy);margin-bottom:8px">Unknown Store Number</h2>
+    <p>Store number <strong id="unknown-num"></strong> is not in the store list.</p>
+  </div>
+
+  <!-- Deli Pro module -->
+  <div id="module-deli" class="module"></div>
+
+  <!-- Inspection module -->
+  <div id="module-inspection" class="module"></div>
+
+  <!-- Cleaning Logs module -->
+  <div id="module-logs" class="module"></div>
+
+  <!-- Coordinator module -->
+  <div id="module-coordinator" class="module"></div>
+
+</main>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="serviceAccount.js"></script>
+<script src="stores.js"></script>
+<script src="sheetsApi.js"></script>
+<script src="deliPro.js"></script>
+<script src="inspection.js"></script>
+<script src="cleaningLogs.js"></script>
+<script src="coordinator.js"></script>
+
+<script>
+// ====================================================
+// URL Router
+// ====================================================
+
+(function () {
+  const params  = new URLSearchParams(window.location.search);
+  const storeNum = params.get('store');
+  const tabParam = params.get('tab');
+  const viewParam = params.get('view');
+
+  const header  = document.getElementById('app-header');
+  const tabNav  = document.getElementById('tab-nav');
+  const badge   = document.getElementById('store-badge');
+
+  // ---- Coordinator view ----
+  if (viewParam === 'coordinator') {
+    badge.textContent = 'Coordinator View';
+    document.title = "Keith's Superdeli - Coordinator";
+    showModule('coordinator');
+    tabNav.style.display = 'none';
+    coordinatorInit(
+      document.getElementById('module-coordinator'),
+      SERVICE_ACCOUNT
+    );
+    return;
+  }
+
+  // ---- No store ----
+  if (!storeNum) {
+    badge.textContent = 'No store selected';
+    document.getElementById('no-store-msg').style.display = 'block';
+    tabNav.style.display = 'none';
+    return;
+  }
+
+  // ---- Store lookup ----
+  const store = getStore(storeNum);
+  if (!store) {
+    badge.textContent = `Store #${storeNum}`;
+    document.getElementById('unknown-store-msg').style.display = 'block';
+    document.getElementById('unknown-num').textContent = storeNum;
+    tabNav.style.display = 'none';
+    return;
+  }
+
+  const { name: storeName, sheetId } = store;
+  badge.textContent = `#${storeNum} ${storeName}`;
+  document.title = `Keith's Superdeli - #${storeNum} ${storeName}`;
+
+  // ---- Tab nav ----
+  tabNav.style.display = 'block';
+
+  const TAB_MAP = {
+    'deli':       'module-deli',
+    'inspection': 'module-inspection',
+    'logs':       'module-logs',
+  };
+
+  // Map URL tab param aliases
+  const ALIAS = {
+    'inspection': 'inspection',
+    'logs':       'logs',
+    'deli':       'deli',
+  };
+
+  let activeTab = ALIAS[tabParam] || 'deli';
+
+  // Module init flags (lazy)
+  const initialized = {};
+
+  function initModuleIfNeeded(tab) {
+    if (initialized[tab]) return;
+    initialized[tab] = true;
+
+    if (tab === 'deli') {
+      deliProInit(
+        document.getElementById('module-deli'),
+        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+      );
+    } else if (tab === 'inspection') {
+      inspState = { answers: {}, photos: {}, ticket: null };
+      inspInit(
+        document.getElementById('module-inspection'),
+        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+      );
+    } else if (tab === 'logs') {
+      cleaningInit(
+        document.getElementById('module-logs'),
+        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+      );
+    }
+  }
+
+  function showModule(mod) {
+    document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+    const el = document.getElementById(`module-${mod}`);
+    if (el) el.classList.add('active');
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    showModule(tab);
+    initModuleIfNeeded(tab);
+
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.module === tab);
+    });
+
+    // Update URL without reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    history.replaceState(null, '', url.toString());
+  }
+
+  tabNav.addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    switchTab(btn.dataset.module);
+  });
+
+  // Boot into the right tab
+  switchTab(activeTab);
+
+})();
+
+function showModule(mod) {
+  document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+  const el = document.getElementById(`module-${mod}`);
+  if (el) el.classList.add('active');
+}
+</script>
+
+</body>
+</html>
