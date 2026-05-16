@@ -82,14 +82,24 @@
 // ====================================================
 
 (function () {
-  const params  = new URLSearchParams(window.location.search);
-  const storeNum = params.get('store');
-  const tabParam = params.get('tab');
+  const params    = new URLSearchParams(window.location.search);
+  const storeNum  = params.get('store');
+  const tabParam  = params.get('tab');
   const viewParam = params.get('view');
 
-  const header  = document.getElementById('app-header');
-  const tabNav  = document.getElementById('tab-nav');
-  const badge   = document.getElementById('store-badge');
+  const tabNav = document.getElementById('tab-nav');
+  const badge  = document.getElementById('store-badge');
+
+  // Credential object passed to every module — matches existing Deli Pro auth pattern.
+  // PRIVATE_KEY and SERVICE_ACCOUNT_EMAIL come from serviceAccount.js (gitignored).
+  const SA = {
+    client_email: SERVICE_ACCOUNT_EMAIL,
+    private_key:  PRIVATE_KEY,
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive',
+    ],
+  };
 
   // ---- Coordinator view ----
   if (viewParam === 'coordinator') {
@@ -97,10 +107,7 @@
     document.title = "Keith's Superdeli - Coordinator";
     showModule('coordinator');
     tabNav.style.display = 'none';
-    coordinatorInit(
-      document.getElementById('module-coordinator'),
-      SERVICE_ACCOUNT
-    );
+    coordinatorInit(document.getElementById('module-coordinator'), SA);
     return;
   }
 
@@ -113,8 +120,8 @@
   }
 
   // ---- Store lookup ----
-  const store = getStore(storeNum);
-  if (!store) {
+  const storeName = getStoreName(storeNum);
+  if (!storeName) {
     badge.textContent = `Store #${storeNum}`;
     document.getElementById('unknown-store-msg').style.display = 'block';
     document.getElementById('unknown-num').textContent = storeNum;
@@ -122,29 +129,19 @@
     return;
   }
 
-  const { name: storeName, sheetId } = store;
+  // Sheet ID from flat SHEET_IDS map (stores.js), populated by migrate.js
+  const sheetId = SHEET_IDS[String(storeNum)] || '';
+
   badge.textContent = `#${storeNum} ${storeName}`;
   document.title = `Keith's Superdeli - #${storeNum} ${storeName}`;
 
   // ---- Tab nav ----
   tabNav.style.display = 'block';
 
-  const TAB_MAP = {
-    'deli':       'module-deli',
-    'inspection': 'module-inspection',
-    'logs':       'module-logs',
-  };
-
-  // Map URL tab param aliases
-  const ALIAS = {
-    'inspection': 'inspection',
-    'logs':       'logs',
-    'deli':       'deli',
-  };
-
+  const ALIAS = { inspection: 'inspection', logs: 'logs', deli: 'deli' };
   let activeTab = ALIAS[tabParam] || 'deli';
 
-  // Module init flags (lazy)
+  // Module init flags (lazy — each module built once on first visit)
   const initialized = {};
 
   function initModuleIfNeeded(tab) {
@@ -154,18 +151,18 @@
     if (tab === 'deli') {
       deliProInit(
         document.getElementById('module-deli'),
-        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+        storeNum, storeName, sheetId, SA
       );
     } else if (tab === 'inspection') {
       inspState = { answers: {}, photos: {}, ticket: null };
       inspInit(
         document.getElementById('module-inspection'),
-        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+        storeNum, storeName, sheetId, SA
       );
     } else if (tab === 'logs') {
       cleaningInit(
         document.getElementById('module-logs'),
-        storeNum, storeName, sheetId, SERVICE_ACCOUNT
+        storeNum, storeName, sheetId, SA
       );
     }
   }

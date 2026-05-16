@@ -1,70 +1,131 @@
-// Store number -> { name, sheetId } map
-// sheetId values are populated after running migrate.js
-const STORES = {
-  '59':  { name: 'Moselle',         sheetId: '' },
-  '60':  { name: 'Lumberton',       sheetId: '' },
-  '61':  { name: 'Wiggins',         sheetId: '' },
-  '62':  { name: 'Sumrall',         sheetId: '' },
-  '63':  { name: 'Petal',           sheetId: '' },
-  '64':  { name: 'Purvis',          sheetId: '' },
-  '65':  { name: 'Poplarville',     sheetId: '' },
-  '66':  { name: 'Hattiesburg',     sheetId: '' },
-  '67':  { name: 'Hattiesburg',     sheetId: '' },
-  '68':  { name: 'Hattiesburg',     sheetId: '' },
-  '69':  { name: 'Columbia',        sheetId: '' },
-  '70':  { name: 'Tylertown',       sheetId: '' },
-  '71':  { name: 'Monticello',      sheetId: '' },
-  '72':  { name: 'Brookhaven',      sheetId: '' },
-  '73':  { name: 'Hazlehurst',      sheetId: '' },
-  '74':  { name: 'Crystal Springs', sheetId: '' },
-  '75':  { name: 'Mendenhall',      sheetId: '' },
-  '76':  { name: 'Magee',           sheetId: '' },
-  '77':  { name: 'Collins',         sheetId: '' },
-  '78':  { name: 'Seminary',        sheetId: '' },
-  '79':  { name: 'Laurel',          sheetId: '' },
-  '80':  { name: 'Laurel',          sheetId: '' },
-  '81':  { name: 'Ellisville',      sheetId: '' },
-  '82':  { name: 'Hurley',          sheetId: '' },
-  '83':  { name: 'Pascagoula',      sheetId: '' },
-  '84':  { name: 'Gautier',         sheetId: '' },
-  '85':  { name: 'Moss Point',      sheetId: '' },
-  '86':  { name: 'Ocean Springs',   sheetId: '' },
-  '87':  { name: 'Biloxi',          sheetId: '' },
-  '88':  { name: 'Gulfport',        sheetId: '' },
-  '89':  { name: 'Gulfport',        sheetId: '' },
-  '90':  { name: 'Long Beach',      sheetId: '' },
-  '91':  { name: 'Pass Christian',  sheetId: '' },
-  '92':  { name: 'Bay St. Louis',   sheetId: '' },
-  '93':  { name: 'Waveland',        sheetId: '' },
-  '94':  { name: 'Picayune',        sheetId: '' },
-  '95':  { name: 'Poplarville',     sheetId: '' },
-  '96':  { name: 'Carriere',        sheetId: '' },
-  '97':  { name: 'Slidell',         sheetId: '' },
-  '98':  { name: 'Covington',       sheetId: '' },
-  '99':  { name: 'Mandeville',      sheetId: '' },
-  '100': { name: 'Madisonville',    sheetId: '' },
-  '101': { name: 'Hammond',         sheetId: '' },
-  '102': { name: 'Ponchatoula',     sheetId: '' },
-  '103': { name: 'Amite',           sheetId: '' },
-  '104': { name: 'Franklinton',     sheetId: '' },
-  '105': { name: 'Bogalusa',        sheetId: '' },
-  '106': { name: 'Poplarville',     sheetId: '' },
-  '107': { name: 'Saucier',         sheetId: '' },
-  '108': { name: 'Diberville',      sheetId: '' },
-  '110': { name: 'Biloxi',          sheetId: '' },
-  '196': { name: 'Poplarville',     sheetId: '' },
+// Store number -> city name
+const STORE_NAMES = {
+  '59':  'Moselle',
+  '60':  'Lumberton',
+  '61':  'Wiggins',
+  '62':  'Sumrall',
+  '63':  'Petal',
+  '64':  'Purvis',
+  '65':  'Poplarville',
+  '66':  'Hattiesburg',
+  '67':  'Hattiesburg',
+  '68':  'Hattiesburg',
+  '69':  'Columbia',
+  '70':  'Tylertown',
+  '71':  'Monticello',
+  '72':  'Brookhaven',
+  '73':  'Hazlehurst',
+  '74':  'Crystal Springs',
+  '75':  'Mendenhall',
+  '76':  'Magee',
+  '77':  'Collins',
+  '78':  'Seminary',
+  '79':  'Laurel',
+  '80':  'Laurel',
+  '81':  'Ellisville',
+  '82':  'Hurley',
+  '83':  'Pascagoula',
+  '84':  'Gautier',
+  '85':  'Moss Point',
+  '86':  'Ocean Springs',
+  '87':  'Biloxi',
+  '88':  'Gulfport',
+  '89':  'Gulfport',
+  '90':  'Long Beach',
+  '91':  'Pass Christian',
+  '92':  'Bay St. Louis',
+  '93':  'Waveland',
+  '94':  'Picayune',
+  '95':  'Poplarville',
+  '96':  'Carriere',
+  '97':  'Slidell',
+  '98':  'Covington',
+  '99':  'Mandeville',
+  '100': 'Madisonville',
+  '101': 'Hammond',
+  '102': 'Ponchatoula',
+  '103': 'Amite',
+  '104': 'Franklinton',
+  '105': 'Bogalusa',
+  '106': 'Poplarville',
+  '107': 'Saucier',
+  '108': 'Diberville',
+  '110': 'Biloxi',
+  '196': 'Poplarville',
 };
 
-function getStore(storeNum) {
-  return STORES[String(storeNum)] || null;
-}
+// Store number -> Google Sheet ID
+// Populated by running: node migrate.js
+// You can also paste Sheet IDs manually — get them from the spreadsheet URL:
+//   https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit
+// Template Sheet ID (used as source for migration): 1jtE9hPaF9MIzDuwyJruTTse94XjS-64SR2vNdNoNpKU
+const SHEET_IDS = {
+  '107': '1jtE9hPaF9MIzDuwyJruTTse94XjS-64SR2vNdNoNpKU',  // Saucier — update after migration
+  // Remaining store IDs added by migrate.js or pasted manually:
+  // '59':  '',
+  // '60':  '',
+  // '61':  '',
+  // '62':  '',
+  // '63':  '',
+  // '64':  '',
+  // '65':  '',
+  // '66':  '',
+  // '67':  '',
+  // '68':  '',
+  // '69':  '',
+  // '70':  '',
+  // '71':  '',
+  // '72':  '',
+  // '73':  '',
+  // '74':  '',
+  // '75':  '',
+  // '76':  '',
+  // '77':  '',
+  // '78':  '',
+  // '79':  '',
+  // '80':  '',
+  // '81':  '',
+  // '82':  '',
+  // '83':  '',
+  // '84':  '',
+  // '85':  '',
+  // '86':  '',
+  // '87':  '',
+  // '88':  '',
+  // '89':  '',
+  // '90':  '',
+  // '91':  '',
+  // '92':  '',
+  // '93':  '',
+  // '94':  '',
+  // '95':  '',
+  // '96':  '',
+  // '97':  '',
+  // '98':  '',
+  // '99':  '',
+  // '100': '',
+  // '101': '',
+  // '102': '',
+  // '103': '',
+  // '104': '',
+  // '105': '',
+  // '106': '',
+  // '108': '',
+  // '110': '',
+  // '196': '',
+};
 
 function getStoreName(storeNum) {
-  const s = getStore(storeNum);
-  return s ? s.name : 'Unknown Store';
+  return STORE_NAMES[String(storeNum)] || null;
 }
 
 function getSheetId(storeNum) {
-  const s = getStore(storeNum);
-  return s ? s.sheetId : null;
+  return SHEET_IDS[String(storeNum)] || null;
+}
+
+// getStore() — convenience wrapper used by index.html router
+function getStore(storeNum) {
+  const name = getStoreName(storeNum);
+  if (!name) return null;
+  return { name, sheetId: getSheetId(storeNum) || '' };
 }

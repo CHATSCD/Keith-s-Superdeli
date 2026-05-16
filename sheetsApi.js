@@ -1,13 +1,15 @@
 // Google Sheets / Drive API helpers
 // Uses a JWT signed with the Service Account key (no OAuth popup).
+// Auth pattern matches existing Deli Pro: PRIVATE_KEY_PARTS array joined, RS256 JWT.
 
-const SHEETS_BASE  = 'https://sheets.googleapis.com/v4/spreadsheets';
-const DRIVE_BASE   = 'https://www.googleapis.com/drive/v3';
-const TOKEN_URI    = 'https://oauth2.googleapis.com/token';
-const SCOPES       = [
+const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
+const DRIVE_BASE  = 'https://www.googleapis.com/drive/v3';
+const TOKEN_URI   = 'https://oauth2.googleapis.com/token';
+
+const DEFAULT_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive',
-].join(' ');
+];
 
 // ---------- JWT helpers ----------
 
@@ -49,22 +51,28 @@ async function signJWT(header, payload, pemKey) {
 
 let _tokenCache = { token: null, expiry: 0 };
 
-async function getAccessToken(serviceAccount) {
+// sa = { client_email, private_key, scopes? }
+// client_email  = SERVICE_ACCOUNT_EMAIL
+// private_key   = PRIVATE_KEY (from PRIVATE_KEY_PARTS.join(''))
+// scopes        = optional array; defaults to Sheets + Drive
+async function getAccessToken(sa) {
   const now = Math.floor(Date.now() / 1000);
   if (_tokenCache.token && now < _tokenCache.expiry - 30) {
     return _tokenCache.token;
   }
 
+  const scopeStr = (sa.scopes || DEFAULT_SCOPES).join(' ');
+
   const header  = { alg: 'RS256', typ: 'JWT' };
   const payload = {
-    iss: serviceAccount.client_email,
-    scope: SCOPES,
+    iss: sa.client_email,
+    scope: scopeStr,
     aud: TOKEN_URI,
     iat: now,
     exp: now + 3600,
   };
 
-  const jwt = await signJWT(header, payload, serviceAccount.private_key);
+  const jwt = await signJWT(header, payload, sa.private_key);
 
   const resp = await fetch(TOKEN_URI, {
     method: 'POST',
