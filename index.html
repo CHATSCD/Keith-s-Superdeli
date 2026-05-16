@@ -2,72 +2,134 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1464B4">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Keith's Superdeli</title>
   <link rel="stylesheet" href="styles.css">
-  <!-- jsPDF for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
-<!-- ===== APP HEADER ===== -->
+<!-- ═══════════════════════════════════════
+     APP HEADER
+══════════════════════════════════════════ -->
 <header id="app-header">
   <div class="header-inner">
     <div class="app-brand">
-      <div class="logo-mark">KS</div>
-      <h1>Keith's Superdeli <span>F&amp;B Operations</span></h1>
+      <!-- Paw-print logo mark (Keith's mascot nod) -->
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 28 28" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <!-- Four toe pads -->
+          <ellipse cx="8"  cy="7"  rx="3"   ry="2.5"/>
+          <ellipse cx="20" cy="7"  rx="3"   ry="2.5"/>
+          <ellipse cx="4"  cy="14" rx="2.5" ry="2"/>
+          <ellipse cx="24" cy="14" rx="2.5" ry="2"/>
+          <!-- Main pad -->
+          <ellipse cx="14" cy="21" rx="7"   ry="5.5"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Keith's</div>
+        <div class="brand-sub">Superdeli Ops</div>
+      </div>
     </div>
-    <div id="store-badge">Loading...</div>
+    <div id="store-badge">Loading…</div>
   </div>
 </header>
 
-<!-- ===== TAB NAV (hidden for coordinator view) ===== -->
-<nav id="tab-nav" style="display:none">
+<!-- ═══════════════════════════════════════
+     TOP TAB NAV  (tablet + desktop)
+══════════════════════════════════════════ -->
+<nav id="tab-nav" style="display:none" aria-label="Module navigation">
   <div class="tab-nav-inner">
-    <button class="tab-btn" data-module="deli">Deli Pro</button>
-    <button class="tab-btn" data-module="inspection">Inspection</button>
-    <button class="tab-btn" data-module="logs">Cleaning Logs</button>
+    <button class="tab-btn" data-module="deli">
+      <span class="tab-icon" aria-hidden="true">🏪</span> Deli Pro
+    </button>
+    <button class="tab-btn" data-module="inspection">
+      <span class="tab-icon" aria-hidden="true">✅</span> Inspection
+    </button>
+    <button class="tab-btn" data-module="logs">
+      <span class="tab-icon" aria-hidden="true">🧹</span> Cleaning Logs
+    </button>
   </div>
 </nav>
 
-<!-- ===== MAIN CONTENT ===== -->
+<!-- ═══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════ -->
 <main id="app-main">
 
-  <!-- No store message -->
+  <!-- No store selected -->
   <div id="no-store-msg" class="empty-state" style="display:none">
-    <div style="font-size:48px;margin-bottom:12px">&#128203;</div>
-    <h2 style="color:var(--navy);margin-bottom:8px">No Store Selected</h2>
+    <div style="font-size:56px;margin-bottom:16px">🐾</div>
+    <h2>No Store Selected</h2>
     <p>Add a store number to the URL to get started.</p>
-    <p style="margin-top:12px">
-      Example: <code style="background:var(--gray);padding:2px 8px;border-radius:4px">/?store=107</code>
+    <p style="margin-top:14px">
+      Example: <code>/?store=107</code>
     </p>
     <p style="margin-top:8px">
-      Coordinator view: <code style="background:var(--gray);padding:2px 8px;border-radius:4px">/?view=coordinator</code>
+      Coordinator view: <code>/?view=coordinator</code>
     </p>
   </div>
 
-  <!-- Unknown store message -->
+  <!-- Unknown store -->
   <div id="unknown-store-msg" class="empty-state" style="display:none">
-    <div style="font-size:48px;margin-bottom:12px">&#10067;</div>
-    <h2 style="color:var(--navy);margin-bottom:8px">Unknown Store Number</h2>
-    <p>Store number <strong id="unknown-num"></strong> is not in the store list.</p>
+    <div style="font-size:56px;margin-bottom:16px">❓</div>
+    <h2>Unknown Store</h2>
+    <p>Store #<strong id="unknown-num"></strong> is not in the store list.</p>
   </div>
 
-  <!-- Deli Pro module -->
-  <div id="module-deli" class="module"></div>
-
-  <!-- Inspection module -->
-  <div id="module-inspection" class="module"></div>
-
-  <!-- Cleaning Logs module -->
-  <div id="module-logs" class="module"></div>
-
-  <!-- Coordinator module -->
+  <!-- Module containers (lazy-initialized) -->
+  <div id="module-deli"        class="module"></div>
+  <div id="module-inspection"  class="module"></div>
+  <div id="module-logs"        class="module"></div>
   <div id="module-coordinator" class="module"></div>
 
 </main>
 
-<!-- ===== SCRIPTS ===== -->
+<!-- ═══════════════════════════════════════
+     BOTTOM NAV  (mobile only — shown by JS)
+══════════════════════════════════════════ -->
+<nav id="bottom-nav" aria-label="Module navigation" style="display:none">
+  <div class="bottom-nav-inner">
+
+    <button class="bottom-tab-btn" data-module="deli" aria-label="Deli Pro">
+      <!-- Store / building icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Deli</span>
+    </button>
+
+    <button class="bottom-tab-btn" data-module="inspection" aria-label="Inspection">
+      <!-- Clipboard check icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+      <span>Inspect</span>
+    </button>
+
+    <button class="bottom-tab-btn" data-module="logs" aria-label="Cleaning Logs">
+      <!-- Sparkles icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v3M12 18v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M3 12h3M18 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+        <circle cx="12" cy="12" r="4"/>
+      </svg>
+      <span>Cleaning</span>
+    </button>
+
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════ -->
 <script src="serviceAccount.js"></script>
 <script src="stores.js"></script>
 <script src="sheetsApi.js"></script>
@@ -77,21 +139,21 @@
 <script src="coordinator.js"></script>
 
 <script>
-// ====================================================
+// ════════════════════════════════════════
 // URL Router
-// ====================================================
-
+// ════════════════════════════════════════
 (function () {
   const params    = new URLSearchParams(window.location.search);
   const storeNum  = params.get('store');
   const tabParam  = params.get('tab');
   const viewParam = params.get('view');
 
-  const tabNav = document.getElementById('tab-nav');
-  const badge  = document.getElementById('store-badge');
+  const tabNav    = document.getElementById('tab-nav');
+  const bottomNav = document.getElementById('bottom-nav');
+  const badge     = document.getElementById('store-badge');
 
-  // Credential object passed to every module — matches existing Deli Pro auth pattern.
-  // PRIVATE_KEY and SERVICE_ACCOUNT_EMAIL come from serviceAccount.js (gitignored).
+  // Build service-account credential object.
+  // PRIVATE_KEY + SERVICE_ACCOUNT_EMAIL come from serviceAccount.js (gitignored).
   const SA = {
     client_email: SERVICE_ACCOUNT_EMAIL,
     private_key:  PRIVATE_KEY,
@@ -101,47 +163,43 @@
     ],
   };
 
-  // ---- Coordinator view ----
+  // ── Coordinator view ────────────────────
   if (viewParam === 'coordinator') {
-    badge.textContent = 'Coordinator View';
-    document.title = "Keith's Superdeli - Coordinator";
+    badge.textContent = '🗂 Coordinator';
+    document.title = "Keith's Superdeli — Coordinator";
     showModule('coordinator');
-    tabNav.style.display = 'none';
     coordinatorInit(document.getElementById('module-coordinator'), SA);
     return;
   }
 
-  // ---- No store ----
+  // ── No store param ──────────────────────
   if (!storeNum) {
     badge.textContent = 'No store selected';
     document.getElementById('no-store-msg').style.display = 'block';
-    tabNav.style.display = 'none';
     return;
   }
 
-  // ---- Store lookup ----
+  // ── Store lookup ─────────────────────────
   const storeName = getStoreName(storeNum);
   if (!storeName) {
     badge.textContent = `Store #${storeNum}`;
     document.getElementById('unknown-store-msg').style.display = 'block';
     document.getElementById('unknown-num').textContent = storeNum;
-    tabNav.style.display = 'none';
     return;
   }
 
-  // Sheet ID from flat SHEET_IDS map (stores.js), populated by migrate.js
   const sheetId = SHEET_IDS[String(storeNum)] || '';
 
-  badge.textContent = `#${storeNum} ${storeName}`;
-  document.title = `Keith's Superdeli - #${storeNum} ${storeName}`;
+  badge.textContent = `#${storeNum} — ${storeName}`;
+  document.title = `Keith's Superdeli — #${storeNum} ${storeName}`;
 
-  // ---- Tab nav ----
-  tabNav.style.display = 'block';
+  // Show navigation
+  tabNav.style.display    = 'block';
+  bottomNav.style.display = 'block';
 
-  const ALIAS = { inspection: 'inspection', logs: 'logs', deli: 'deli' };
+  const ALIAS = { deli: 'deli', inspection: 'inspection', logs: 'logs' };
   let activeTab = ALIAS[tabParam] || 'deli';
 
-  // Module init flags (lazy — each module built once on first visit)
   const initialized = {};
 
   function initModuleIfNeeded(tab) {
@@ -167,41 +225,40 @@
     }
   }
 
-  function showModule(mod) {
-    document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
-    const el = document.getElementById(`module-${mod}`);
-    if (el) el.classList.add('active');
-  }
-
   function switchTab(tab) {
+    if (!ALIAS[tab]) return;
     activeTab = tab;
     showModule(tab);
     initModuleIfNeeded(tab);
 
-    document.querySelectorAll('.tab-btn').forEach(b => {
+    // Sync active class on ALL nav buttons (top + bottom)
+    document.querySelectorAll('[data-module]').forEach(b => {
       b.classList.toggle('active', b.dataset.module === tab);
     });
 
-    // Update URL without reload
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tab);
     history.replaceState(null, '', url.toString());
   }
 
-  tabNav.addEventListener('click', e => {
-    const btn = e.target.closest('.tab-btn');
+  // Single delegated handler for both top and bottom navs
+  function onNavClick(e) {
+    const btn = e.target.closest('[data-module]');
     if (!btn) return;
     switchTab(btn.dataset.module);
-  });
+  }
 
-  // Boot into the right tab
+  tabNav.addEventListener('click', onNavClick);
+  bottomNav.addEventListener('click', onNavClick);
+
+  // Boot
   switchTab(activeTab);
-
 })();
 
+// Global helper used by coordinator init
 function showModule(mod) {
   document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
-  const el = document.getElementById(`module-${mod}`);
+  const el = document.getElementById('module-' + mod);
   if (el) el.classList.add('active');
 }
 </script>
