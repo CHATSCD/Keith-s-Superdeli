@@ -135,6 +135,7 @@
 <script src="deliPro.js"></script>
 <script src="inspection.js"></script>
 <script src="cleaningLogs.js"></script>
+<script src="backup.js"></script>
 <script src="coordinator.js"></script>
 
 <script>
@@ -228,9 +229,10 @@
     initialized[tab] = true;
 
     if (tab === 'deli') {
+      const countSheetId = (typeof COUNT_SHEET_IDS !== 'undefined' && COUNT_SHEET_IDS[String(storeNum)]) || '';
       deliProInit(
         document.getElementById('module-deli'),
-        storeNum, storeName, sheetId, SA
+        storeNum, storeName, sheetId, SA, countSheetId
       );
     } else if (tab === 'inspection') {
       inspState = { answers: {}, photos: {}, ticket: null };

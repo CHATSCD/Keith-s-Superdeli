@@ -45,6 +45,23 @@ const STORE_NAMES = {
   '196': 'Poplarville',
 };
 
+// Store number -> Count Sheet Google Sheet ID
+// Sourced from emails forwarded to shaundubuisson24@gmail.com by foodservice3@keithsuperstore.com
+// (originally shared by Theresa Holifield, May 2026).
+// Store 127 (Collins) intentionally excluded per coordinator instruction.
+const COUNT_SHEET_IDS = {
+  '60':  '1RObmggSu-cMIGXCeRF-0yFe8AFxP5BHRiPMuYiVsxc4',
+  '82':  '1zeoB03u7qRaouRhgT-wYKlh-B5-rRyffJ6ZhkZ06dvc',
+  '109': '1DLoZvAS6tlsmXZ3NfYYK-RaL_Salg0EBRHCl0empMA4',
+  '112': '1gRZp3lyOdASKSa7iqyEM3_xKyUuQr7UBH542sHZBFrc',
+  '140': '1guVTZbcgJSJ4ne17ly18g6yCCBLWWF2mcGPdrdnB9lo',
+  '155': '1lIFVT2ff3i3bgwELElTwAumhJa1-AtUCZbtWI360eMY',
+  '157': '17FNJACyBCOnmKyQyHH0P0LCF8nSHVt7w7qTJ4W8SvK0',
+  '173': '1BxBA2Isdxd4SNUCLENcNIOml2oqncszfGBnScF_ADaY',
+  '175': '1zX-5DsoytY53_nBkHYv_jcyEyVJgPopQ4FOreVMU2xg',
+  '194': '1jtsEz43d1HaHNiVbI6wKqMaqg40v1yN-4VVnIi2bpCI',
+};
+
 // Store number -> Google Sheet ID
 // Sourced from "Deli Pro — Keith's Superstore" sheets in Google Drive ("Keith's" folder).
 const SHEET_IDS = {
@@ -109,8 +126,12 @@ function getStore(storeNum) {
 }
 
 // STORES — combined map used by coordinator.js
-// { storeNum: { name, sheetId } }
+// { storeNum: { name, sheetId, countSheetId } }
 const STORES = {};
 Object.keys(STORE_NAMES).forEach(function(num) {
-  STORES[num] = { name: STORE_NAMES[num], sheetId: SHEET_IDS[num] || '' };
+  STORES[num] = {
+    name:         STORE_NAMES[num],
+    sheetId:      SHEET_IDS[num] || '',
+    countSheetId: COUNT_SHEET_IDS[num] || '',
+  };
 });

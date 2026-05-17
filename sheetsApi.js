@@ -223,3 +223,25 @@ async function sheetsEnsureHeaders(serviceAccount, sheetId, tabName, headers) {
   } catch (_) { /* tab may be empty */ }
   await sheetsUpdate(serviceAccount, sheetId, `${tabName}!A1`, [headers]);
 }
+
+// Returns spreadsheet metadata including all sheet tab names and their internal IDs.
+async function sheetsGetMetadata(sa, sheetId) {
+  const token = await getAccessToken(sa);
+  const url = `${SHEETS_BASE}/${sheetId}?fields=sheets.properties`;
+  const resp = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!resp.ok) throw new Error(`Metadata fetch failed: ${await resp.text()}`);
+  return resp.json();
+}
+
+// Permanently deletes a tab by its internal numeric sheet ID (from sheetsGetMetadata).
+async function sheetsDeleteTab(sa, sheetId, tabSheetId) {
+  const token = await getAccessToken(sa);
+  const url = `${SHEETS_BASE}/${sheetId}:batchUpdate`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ deleteSheet: { sheetId: tabSheetId } }] }),
+  });
+  if (!resp.ok) throw new Error(`Delete tab failed: ${await resp.text()}`);
+  return resp.json();
+}

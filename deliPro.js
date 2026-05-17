@@ -21,6 +21,7 @@ const RECIPE_CATS           = ['Sandwiches','Salads','Hot Foods','Sides','Soups'
 // Module-level state
 const deliState = {
   storeNum: null, storeName: null, sheetId: null, sa: null,
+  countSheetId: null,
   activeTab: 'inventory',
   data: {},
 };
@@ -29,13 +30,14 @@ const deliState = {
 // ENTRY POINT
 // ════════════════════════════════════════
 
-function deliProInit(container, storeNum, storeName, sheetId, serviceAccount) {
-  deliState.storeNum  = storeNum;
-  deliState.storeName = storeName;
-  deliState.sheetId   = sheetId;
-  deliState.sa        = serviceAccount;
-  deliState.data      = {};
-  deliState.activeTab = 'inventory';
+function deliProInit(container, storeNum, storeName, sheetId, serviceAccount, countSheetId) {
+  deliState.storeNum     = storeNum;
+  deliState.storeName    = storeName;
+  deliState.sheetId      = sheetId;
+  deliState.sa           = serviceAccount;
+  deliState.countSheetId = countSheetId || null;
+  deliState.data         = {};
+  deliState.activeTab    = 'inventory';
 
   container.innerHTML = buildDeliShell();
   attachDeliNav(container);
@@ -95,13 +97,71 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+    ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
+    : '';
+
+  // Inventory: load from count sheet when one is linked for this store
+  if (tabId === 'inventory' && deliState.countSheetId) {
+    let raw;
+    try {
+      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:G1000');
+      raw = result.values || [];
+    } catch (err) {
+      content.innerHTML = `
+        <div class="banner banner-danger">
+          <strong>Could not load count sheet.</strong>
+          <br>Error: <code>${err.message}</code>${saNote}
+        </div>`;
+      return;
+    }
+
+    // Transform count sheet rows → Inventory format.
+    // Count sheet columns: [Count By, Product Description, Product #, Pack Size, On Hand, Price, Total]
+    // Section header rows have no unit (col A empty) and no price/total — use as category.
+    let currentCat = 'Other';
+    const today    = new Date().toLocaleDateString();
+    const invRows  = [];
+
+    raw.slice(1).forEach(r => {
+      const unit    = (r[0] || '').trim();
+      const product = (r[1] || '').trim();
+      const onHand  = (r[4] || '').trim();
+      const price   = (r[5] || '').replace(/[$,]/g, '').trim();
+
+      // Section header: no unit, all-caps vendor name, no price/total
+      if (!unit && product && !(r[5] || '').trim() && !(r[6] || '').trim()) {
+        currentCat = product;
+        return;
+      }
+      if (!unit || !product) return;
+      if (/total|over|short/i.test(product)) return;
+
+      invRows.push([product, currentCat, unit, onHand || '0', '', '', price, '', today]);
+    });
+
+    deliState.data.inventory = [DELI_TABS.inventory.headers, ...invRows];
+
+    // Write to the store's Deli Pro sheet — clear old rows then write fresh.
+    if (deliState.sheetId) {
+      try {
+        await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Inventory', DELI_TABS.inventory.headers);
+        await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2:I1000',
+          Array(999).fill(['', '', '', '', '', '', '', '', '']));
+        if (invRows.length) {
+          await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2', invRows);
+        }
+      } catch (_) { /* sheet write errors are non-fatal for display */ }
+    }
+
+    renderInventory(content, deliState.data.inventory);
+    return;
+  }
+
   try {
     const result = await sheetsGet(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1:Z1000`);
     deliState.data[tabId] = result.values || [];
   } catch (err) {
-    const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
-      ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
-      : '';
     content.innerHTML = `
       <div class="banner banner-danger">
         <strong>Could not load data from Google Sheets.</strong>

@@ -4,6 +4,10 @@
 async function coordinatorInit(container, serviceAccount) {
   container.innerHTML = buildCoordinatorShell();
   await loadCoordinatorData(container, serviceAccount);
+
+  document.getElementById('backup-all-btn')?.addEventListener('click', () => {
+    backupAllStores(serviceAccount);
+  });
 }
 
 function buildCoordinatorShell() {
@@ -55,6 +59,18 @@ function buildCoordinatorShell() {
       <div class="table-wrap" id="food-cost-table-wrap">
         <div class="loading-state"><div class="spinner"></div><p>Loading food cost data...</p></div>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Weekly Inventory Backup</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Creates a dated snapshot of every store's Inventory tab. Keeps the last
+        4 weekly backups per store — older ones are removed automatically.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="backup-all-btn">Backup All Stores Now</button>
+      </div>
+      <div id="backup-status" style="margin-top:8px"></div>
     </div>
   `;
 }
