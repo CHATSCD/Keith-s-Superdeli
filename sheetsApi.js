@@ -29,8 +29,9 @@ async function signJWT(header, payload, pemKey) {
   const p = base64url(JSON.stringify(payload));
   const sigInput = enc.encode(`${h}.${p}`);
 
-  // Strip PEM wrapper and decode
+  // Normalize: handle literal \n sequences that some env var tools produce
   const pemBody = pemKey
+    .replace(/\\n/g, '\n')
     .replace(/-----[^-]+-----/g, '')
     .replace(/\s/g, '');
   const binaryDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
@@ -50,6 +51,13 @@ async function signJWT(header, payload, pemKey) {
 // ---------- Token cache ----------
 
 let _tokenCache = { token: null, expiry: 0 };
+let _tokenInflight = null;
+
+function fetchWithTimeout(url, options, ms = 20000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
 
 // sa = { client_email, private_key, scopes? }
 // client_email  = SERVICE_ACCOUNT_EMAIL
@@ -60,37 +68,47 @@ async function getAccessToken(sa) {
   if (_tokenCache.token && now < _tokenCache.expiry - 30) {
     return _tokenCache.token;
   }
+  // Deduplicate: if a token fetch is already in flight, reuse it
+  if (_tokenInflight) return _tokenInflight;
 
-  const scopeStr = (sa.scopes || DEFAULT_SCOPES).join(' ');
+  _tokenInflight = (async () => {
+    try {
+      const scopeStr = (sa.scopes || DEFAULT_SCOPES).join(' ');
+      const ts = Math.floor(Date.now() / 1000);
+      const header  = { alg: 'RS256', typ: 'JWT' };
+      const payload = {
+        iss: sa.client_email,
+        scope: scopeStr,
+        aud: TOKEN_URI,
+        iat: ts,
+        exp: ts + 3600,
+      };
 
-  const header  = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: sa.client_email,
-    scope: scopeStr,
-    aud: TOKEN_URI,
-    iat: now,
-    exp: now + 3600,
-  };
+      const jwt = await signJWT(header, payload, sa.private_key);
 
-  const jwt = await signJWT(header, payload, sa.private_key);
+      const resp = await fetchWithTimeout(TOKEN_URI, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion: jwt,
+        }),
+      });
 
-  const resp = await fetch(TOKEN_URI, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  });
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Token fetch failed: ${err}`);
+      }
 
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Token fetch failed: ${err}`);
-  }
+      const data = await resp.json();
+      _tokenCache = { token: data.access_token, expiry: ts + data.expires_in };
+      return data.access_token;
+    } finally {
+      _tokenInflight = null;
+    }
+  })();
 
-  const data = await resp.json();
-  _tokenCache = { token: data.access_token, expiry: now + data.expires_in };
-  return data.access_token;
+  return _tokenInflight;
 }
 
 // ---------- Sheets read/write ----------
@@ -98,7 +116,7 @@ async function getAccessToken(sa) {
 async function sheetsGet(serviceAccount, sheetId, range) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok) throw new Error(`Sheets GET failed: ${await resp.text()}`);
@@ -108,7 +126,7 @@ async function sheetsGet(serviceAccount, sheetId, range) {
 async function sheetsAppend(serviceAccount, sheetId, range, values) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -123,7 +141,7 @@ async function sheetsAppend(serviceAccount, sheetId, range, values) {
 async function sheetsUpdate(serviceAccount, sheetId, range, values) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -139,7 +157,7 @@ async function sheetsBatchGet(serviceAccount, sheetId, ranges) {
   const token = await getAccessToken(serviceAccount);
   const qs = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
   const url = `${SHEETS_BASE}/${sheetId}/values:batchGet?${qs}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok) throw new Error(`Sheets batchGet failed: ${await resp.text()}`);

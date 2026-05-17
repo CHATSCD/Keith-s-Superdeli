@@ -93,13 +93,25 @@ async function loadCoordinatorData(container, serviceAccount) {
           followup:  last[10] || '',
           status:    last[11] || '',
         };
-      } catch (_) {
+      } catch (err) {
+        console.error(`Store #${num} load failed:`, err.message);
         return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
     })
   );
 
   coordAllRows = rows.map(r => r.value || r.reason);
+
+  const allFailed = coordAllRows.every(r => r.status === 'Error');
+  if (allFailed) {
+    document.getElementById('coord-alerts').innerHTML = `
+      <div class="banner banner-danger">
+        <strong>Could not load any store data.</strong>
+        Check the browser console (F12) for error details.
+        Common causes: service account not shared with the sheets, or credentials misconfigured.
+      </div>`;
+  }
+
   renderCoordTable(container, coordAllRows);
   renderAlerts(container, coordAllRows);
   await loadFoodCostSummary(container, storeEntries, serviceAccount);
