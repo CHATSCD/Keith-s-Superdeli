@@ -62,18 +62,8 @@
 ══════════════════════════════════════════ -->
 <main id="app-main">
 
-  <!-- No store selected -->
-  <div id="no-store-msg" class="empty-state" style="display:none">
-    <div style="font-size:56px;margin-bottom:16px">🐾</div>
-    <h2>No Store Selected</h2>
-    <p>Add a store number to the URL to get started.</p>
-    <p style="margin-top:14px">
-      Example: <code>/?store=107</code>
-    </p>
-    <p style="margin-top:8px">
-      Coordinator view: <code>/?view=coordinator</code>
-    </p>
-  </div>
+  <!-- Store picker (shown when no store param) -->
+  <div id="no-store-msg" style="display:none"></div>
 
   <!-- Unknown store -->
   <div id="unknown-store-msg" class="empty-state" style="display:none">
@@ -194,10 +184,89 @@
     return;
   }
 
-  // ── No store param ──────────────────────
+  // ── No store param — show store picker ──
   if (!storeNum) {
-    badge.textContent = 'No store selected';
-    document.getElementById('no-store-msg').style.display = 'block';
+    badge.textContent = 'Select a Store';
+
+    // Build sorted options from STORES map
+    const storeNums = Object.keys(STORE_NAMES).sort((a, b) => Number(a) - Number(b));
+    const options   = storeNums.map(n => {
+      const city = STORE_NAMES[n];
+      return `<option value="${n}">Store #${n}${city ? ' — ' + city : ''}</option>`;
+    }).join('');
+
+    const el = document.getElementById('no-store-msg');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div style="
+        max-width:420px;margin:0 auto;padding:40px 16px 56px;text-align:center
+      ">
+        <div style="font-size:64px;line-height:1;margin-bottom:16px">🐾</div>
+        <div style="
+          font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;
+          color:var(--ks-blue2);letter-spacing:.04em;margin-bottom:4px
+        ">Keith's Superdeli</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:28px">
+          Select your store to open Deli Pro
+        </div>
+
+        <div style="text-align:left;margin-bottom:8px">
+          <label style="
+            font-size:11px;font-weight:700;color:var(--muted);
+            text-transform:uppercase;letter-spacing:.06em
+          ">Store</label>
+          <select id="store-picker" style="
+            width:100%;padding:12px 14px;border:1.5px solid var(--gray);
+            border-radius:10px;font-size:16px;font-family:inherit;
+            color:var(--text);background:var(--white);
+            -webkit-appearance:none;appearance:none;
+            background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23888%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');
+            background-repeat:no-repeat;background-position:right 14px center;
+            padding-right:40px;cursor:pointer;min-height:50px;
+            box-shadow:0 1px 3px rgba(0,0,0,.06)
+          ">
+            <option value="">— Choose a store —</option>
+            ${options}
+          </select>
+        </div>
+
+        <button id="store-go-btn" disabled style="
+          width:100%;padding:14px;background:var(--ks-blue);color:#fff;
+          border:none;border-radius:10px;font-size:16px;font-weight:700;
+          font-family:inherit;cursor:pointer;opacity:.4;
+          transition:opacity .15s;margin-top:4px;min-height:50px
+        ">Open Store</button>
+
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--gray)">
+          <a href="/?view=coordinator" style="
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:14px;font-weight:600;color:var(--ks-blue);text-decoration:none
+          ">
+            🗂 Coordinator View
+          </a>
+        </div>
+      </div>
+    `;
+
+    const picker = document.getElementById('store-picker');
+    const goBtn  = document.getElementById('store-go-btn');
+
+    picker.addEventListener('change', function () {
+      const val = this.value;
+      goBtn.disabled = !val;
+      goBtn.style.opacity = val ? '1' : '.4';
+    });
+
+    goBtn.addEventListener('click', function () {
+      const val = picker.value;
+      if (val) window.location.href = '/?store=' + val;
+    });
+
+    // Also navigate immediately on double-tap / desktop Enter
+    picker.addEventListener('dblclick', function () {
+      if (this.value) window.location.href = '/?store=' + this.value;
+    });
+
     return;
   }
 
