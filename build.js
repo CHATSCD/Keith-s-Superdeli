@@ -10,9 +10,22 @@
 const fs = require('fs');
 const path = require('path');
 
-const email     = process.env.SA_CLIENT_EMAIL  || '';
-const key       = process.env.SA_PRIVATE_KEY   || '';
-const folderId  = process.env.SA_FOLDER_ID     || '';
+const email    = process.env.SA_CLIENT_EMAIL || '';
+let   key      = process.env.SA_PRIVATE_KEY  || '';
+const folderId = process.env.SA_FOLDER_ID    || '';
+
+// Normalize the private key:
+// When pasted into Vercel, actual newlines often become literal \n (two chars).
+// Convert them back so crypto.subtle can parse the PEM key correctly.
+if (key) {
+  key = key.replace(/\\n/g, '\n').trim();
+  // Add PEM headers if they were accidentally stripped.
+  if (!key.startsWith('-----BEGIN')) {
+    key = `-----BEGIN PRIVATE KEY-----\n${key}\n-----END PRIVATE KEY-----\n`;
+  }
+  // Ensure it ends with a newline.
+  if (!key.endsWith('\n')) key += '\n';
+}
 
 if (!email || !key) {
   console.warn('[build.js] WARNING: SA_CLIENT_EMAIL or SA_PRIVATE_KEY not set.');
