@@ -193,6 +193,32 @@ body {
   background: rgba(255,255,255,.06);
 }
 
+/* Deli Pro sub-nav — inside white content area, needs dark text */
+.deli-sub-btn {
+  color: var(--muted);
+  background: var(--bg);
+  border: 1.5px solid var(--gray);
+  border-bottom: 1.5px solid var(--gray);
+  border-radius: 20px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 0;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.deli-sub-btn:hover {
+  color: var(--ks-blue);
+  border-color: var(--ks-blue);
+  background: rgba(21,101,192,.06);
+}
+.deli-sub-btn.active {
+  color: var(--white);
+  background: var(--ks-blue);
+  border-color: var(--ks-blue);
+  border-bottom-color: var(--ks-blue);
+}
+
 /* ══════════════════════════════════════════
    BOTTOM NAV  (mobile ≤ 640px)
 ══════════════════════════════════════════ */
