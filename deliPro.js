@@ -162,13 +162,23 @@ async function switchDeliTab(container, tabId) {
     const result = await sheetsGet(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1:Z1000`);
     deliState.data[tabId] = result.values || [];
   } catch (err) {
-    content.innerHTML = `
-      <div class="banner banner-danger">
-        <strong>Could not load data from Google Sheets.</strong>
-        <br>Error: <code>${err.message}</code>
-        ${saNote}
-      </div>`;
-    return;
+    // Tab doesn't exist yet — create it with headers then show empty state
+    const tabMissing = /unable to parse range|not found/i.test(err.message);
+    if (tabMissing && tabCfg.headers) {
+      try {
+        await sheetsAddTab(deliState.sa, deliState.sheetId, tabCfg.tab);
+        await sheetsUpdate(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1`, [tabCfg.headers]);
+      } catch (_) { /* ignore if tab already exists race */ }
+      deliState.data[tabId] = [tabCfg.headers];
+    } else {
+      content.innerHTML = `
+        <div class="banner banner-danger">
+          <strong>Could not load data from Google Sheets.</strong>
+          <br>Error: <code>${err.message}</code>
+          ${saNote}
+        </div>`;
+      return;
+    }
   }
 
   switch (tabId) {
