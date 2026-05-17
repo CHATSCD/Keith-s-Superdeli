@@ -3,15 +3,14 @@
 // All backed by Google Sheets tabs via sheetsApi.js.
 
 const DELI_TABS = {
-  inventory:  { label: 'Inventory',   tab: 'Inventory',  headers: ['Item','Category','Unit','Count','Par Level','Reorder Point','Cost/Unit','Updated By','Last Updated'] },
-  foodcost:   { label: 'Food Cost',   tab: 'Food Cost',  headers: ['Date','Week','Sales ($)','COGS ($)','Food Cost %','Target %','Notes'] },
-  invoices:   { label: 'Invoices',    tab: 'Invoices',   headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
-  orders:     { label: 'Orders',      tab: 'Orders',     headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
-  recipes:    { label: 'Recipes',     tab: 'Recipes',    headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
-  suppliers:  { label: 'Suppliers',   tab: 'Suppliers',  headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
-  countsheet: { label: 'Count Sheet', virtual: true },
-  analytics:  { label: 'Analytics',  virtual: true },
-  training:   { label: 'Training',   virtual: true },
+  inventory: { label: 'Inventory',  tab: 'Inventory',  headers: ['Item','Category','Unit','Count','Par Level','Reorder Point','Cost/Unit','Updated By','Last Updated'] },
+  foodcost:  { label: 'Food Cost',  tab: 'Food Cost',  headers: ['Date','Week','Sales ($)','COGS ($)','Food Cost %','Target %','Notes'] },
+  invoices:  { label: 'Invoices',   tab: 'Invoices',   headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
+  orders:    { label: 'Orders',     tab: 'Orders',     headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
+  recipes:   { label: 'Recipes',    tab: 'Recipes',    headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
+  suppliers: { label: 'Suppliers',  tab: 'Suppliers',  headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
+  analytics: { label: 'Analytics',  virtual: true },
+  training:  { label: 'Training',   virtual: true },
 };
 
 const INVENTORY_CATEGORIES = ['Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beverages','Supplies','Other'];
@@ -76,11 +75,6 @@ async function switchDeliTab(container, tabId) {
   const content = container.querySelector('#deli-content');
   if (!content) return;
 
-  if (tabId === 'countsheet') {
-    renderCountSheet(content);
-    return;
-  }
-
   if (tabId === 'analytics') {
     renderAnalytics(content);
     return;
@@ -103,13 +97,71 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+    ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
+    : '';
+
+  // Inventory: load from count sheet when one is linked for this store
+  if (tabId === 'inventory' && deliState.countSheetId) {
+    let raw;
+    try {
+      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:G1000');
+      raw = result.values || [];
+    } catch (err) {
+      content.innerHTML = `
+        <div class="banner banner-danger">
+          <strong>Could not load count sheet.</strong>
+          <br>Error: <code>${err.message}</code>${saNote}
+        </div>`;
+      return;
+    }
+
+    // Transform count sheet rows → Inventory format.
+    // Count sheet columns: [Count By, Product Description, Product #, Pack Size, On Hand, Price, Total]
+    // Section header rows have no unit (col A empty) and no price/total — use as category.
+    let currentCat = 'Other';
+    const today    = new Date().toLocaleDateString();
+    const invRows  = [];
+
+    raw.slice(1).forEach(r => {
+      const unit    = (r[0] || '').trim();
+      const product = (r[1] || '').trim();
+      const onHand  = (r[4] || '').trim();
+      const price   = (r[5] || '').replace(/[$,]/g, '').trim();
+
+      // Section header: no unit, all-caps vendor name, no price/total
+      if (!unit && product && !(r[5] || '').trim() && !(r[6] || '').trim()) {
+        currentCat = product;
+        return;
+      }
+      if (!unit || !product) return;
+      if (/total|over|short/i.test(product)) return;
+
+      invRows.push([product, currentCat, unit, onHand || '0', '', '', price, '', today]);
+    });
+
+    deliState.data.inventory = [DELI_TABS.inventory.headers, ...invRows];
+
+    // Write to the store's Deli Pro sheet — clear old rows then write fresh.
+    if (deliState.sheetId) {
+      try {
+        await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Inventory', DELI_TABS.inventory.headers);
+        await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2:I1000',
+          Array(999).fill(['', '', '', '', '', '', '', '', '']));
+        if (invRows.length) {
+          await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2', invRows);
+        }
+      } catch (_) { /* sheet write errors are non-fatal for display */ }
+    }
+
+    renderInventory(content, deliState.data.inventory);
+    return;
+  }
+
   try {
     const result = await sheetsGet(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1:Z1000`);
     deliState.data[tabId] = result.values || [];
   } catch (err) {
-    const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
-      ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
-      : '';
     content.innerHTML = `
       <div class="banner banner-danger">
         <strong>Could not load data from Google Sheets.</strong>
@@ -729,179 +781,6 @@ function renderSuppliers(content, rows) {
     } catch(err) {
       statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally { btn.disabled=false; btn.textContent='Save Supplier'; }
-  });
-}
-
-// ════════════════════════════════════════
-// COUNT SHEET
-// ════════════════════════════════════════
-
-async function renderCountSheet(content) {
-  if (!deliState.countSheetId) {
-    content.innerHTML = `
-      <div class="banner banner-warn">
-        <div class="banner-icon">⚠</div>
-        <div>No count sheet is linked for this store.</div>
-      </div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading count sheet…</p></div>`;
-
-  let rows;
-  try {
-    const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:G1000');
-    rows = result.values || [];
-  } catch (err) {
-    content.innerHTML = `
-      <div class="banner banner-danger">
-        <strong>Could not load count sheet.</strong><br>
-        Error: <code>${err.message}</code>
-      </div>`;
-    return;
-  }
-
-  if (rows.length < 2) {
-    content.innerHTML = `<div class="empty-state"><p>Count sheet is empty.</p></div>`;
-    return;
-  }
-
-  const dataRows = rows.slice(1);
-  let totalValue = 0;
-  let itemCount  = 0;
-
-  const bodyHTML = dataRows.map(r => {
-    const countBy    = (r[0] || '').trim();
-    const product    = (r[1] || '').trim();
-    const productNum = (r[2] || '').trim();
-    const packSize   = (r[3] || '').trim();
-    const onHand     = (r[4] || '').trim();
-    const price      = (r[5] || '').trim();
-    const total      = (r[6] || '').trim();
-
-    if (!countBy && !product) return '';
-
-    // Section header: no unit, ALL-CAPS vendor name, no price
-    if (!countBy && product && !price && !total) {
-      return `<tr style="background:var(--ks-blue2);color:#fff">
-        <td colspan="7" style="font-weight:700;padding:7px 10px;font-size:12px;letter-spacing:.5px">${product}</td>
-      </tr>`;
-    }
-
-    // Totals/summary rows
-    if (!countBy || product.toUpperCase().includes('TOTAL') || product.toUpperCase().includes('OVER') || product.toUpperCase().includes('SHORT')) {
-      if (total) {
-        const t = parseFloat(total.replace(/[$,]/g, '')) || 0;
-        totalValue += t;
-      }
-      return `<tr style="background:var(--bg);font-style:italic;color:var(--muted)">
-        <td colspan="5" style="text-align:right;padding:5px 10px;font-size:12px">${product}</td>
-        <td style="font-size:12px">${price}</td>
-        <td style="font-weight:700;font-size:12px">${total}</td>
-      </tr>`;
-    }
-
-    const t = parseFloat(total.replace(/[$,]/g, '')) || 0;
-    totalValue += t;
-    itemCount++;
-
-    const zeroed = parseFloat(onHand) === 0 || onHand === '' || onHand === '0';
-    return `<tr class="${zeroed ? 'row-overdue' : ''}">
-      <td style="font-size:12px;font-weight:600">${countBy}</td>
-      <td style="font-weight:600">${product}</td>
-      <td style="font-size:11px;color:var(--muted)">${productNum}</td>
-      <td style="font-size:12px">${packSize}</td>
-      <td style="font-weight:700;color:${zeroed ? 'var(--red)' : 'inherit'}">${onHand || '0'}</td>
-      <td style="font-size:12px">${price}</td>
-      <td style="font-weight:700">${total || '—'}</td>
-    </tr>`;
-  }).join('');
-
-  content.innerHTML = `
-    <div class="stats-row">
-      <div class="stat-pill">
-        <div class="stat-pill-label">Items</div>
-        <div class="stat-pill-value">${itemCount}</div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-pill-label">Count Value</div>
-        <div class="stat-pill-value">$${totalValue.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">
-        Count Sheet
-        <button class="btn btn-primary btn-sm" id="sync-count-btn">↓ Sync to Inventory</button>
-      </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-        Items highlighted in red have zero on-hand. "Sync to Inventory" copies these items into the Inventory tab.
-      </p>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th>Unit</th><th>Item</th><th>Product #</th><th>Pack Size</th>
-            <th>On Hand</th><th>Price</th><th>Total</th>
-          </tr></thead>
-          <tbody>${bodyHTML}</tbody>
-        </table>
-      </div>
-    </div>
-    <div id="sync-status" style="margin-top:8px;font-size:13px"></div>
-  `;
-
-  content.querySelector('#sync-count-btn').addEventListener('click', async () => {
-    const btn      = content.querySelector('#sync-count-btn');
-    const statusEl = content.querySelector('#sync-status');
-    btn.disabled   = true;
-    btn.textContent = 'Syncing…';
-    statusEl.textContent = '';
-
-    if (!deliState.sheetId) {
-      statusEl.innerHTML = '<span style="color:var(--red)">No Deli Pro sheet configured for this store.</span>';
-      btn.disabled = false; btn.textContent = '↓ Sync to Inventory';
-      return;
-    }
-
-    try {
-      let currentCat = 'Other';
-      const today    = new Date().toLocaleDateString();
-      const invRows  = [];
-
-      dataRows.forEach(r => {
-        const countBy = (r[0] || '').trim();
-        const product = (r[1] || '').trim();
-        const onHand  = (r[4] || '').trim();
-        const price   = (r[5] || '').replace(/[$,]/g, '').trim();
-
-        if (!countBy && product && !(r[5] || '').trim() && !(r[6] || '').trim()) {
-          currentCat = product;
-          return;
-        }
-        if (!countBy || !product) return;
-        if (product.toUpperCase().includes('TOTAL') || product.toUpperCase().includes('OVER') || product.toUpperCase().includes('SHORT')) return;
-
-        invRows.push([product, currentCat, countBy, onHand || '0', '', '', price, '', today]);
-      });
-
-      if (!invRows.length) {
-        statusEl.innerHTML = '<span style="color:var(--amber)">No items found to sync.</span>';
-        btn.disabled = false; btn.textContent = '↓ Sync to Inventory';
-        return;
-      }
-
-      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Inventory', DELI_TABS.inventory.headers);
-      await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2:I1000', Array(999).fill(['','','','','','','','','']));
-      await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2', invRows);
-
-      statusEl.innerHTML = `<span style="color:var(--green)">${invRows.length} items synced to Inventory tab successfully.</span>`;
-      deliState.data.inventory = null;
-    } catch (err) {
-      statusEl.innerHTML = `<span style="color:var(--red)">Sync failed: ${err.message}</span>`;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '↓ Sync to Inventory';
-    }
   });
 }
 
