@@ -129,3 +129,10 @@ function getStore(storeNum) {
   if (!name) return null;
   return { name, sheetId: getSheetId(storeNum) || '' };
 }
+
+// STORES — combined map used by coordinator.js
+// { storeNum: { name, sheetId } }
+const STORES = {};
+Object.keys(STORE_NAMES).forEach(function(num) {
+  STORES[num] = { name: STORE_NAMES[num], sheetId: SHEET_IDS[num] || '' };
+});
