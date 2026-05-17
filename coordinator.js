@@ -74,6 +74,7 @@ async function loadCoordinatorData(container, serviceAccount) {
     return;
   }
 
+  const firstError = { msg: '' };
   const rows = await Promise.allSettled(
     storeEntries.map(async ([num, store]) => {
       try {
@@ -94,7 +95,7 @@ async function loadCoordinatorData(container, serviceAccount) {
           status:    last[11] || '',
         };
       } catch (err) {
-        console.error(`Store #${num} load failed:`, err.message);
+        if (!firstError.msg) firstError.msg = err.message;
         return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
     })
@@ -104,11 +105,13 @@ async function loadCoordinatorData(container, serviceAccount) {
 
   const allFailed = coordAllRows.every(r => r.status === 'Error');
   if (allFailed) {
+    const saEmail = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+      ? `<br><br>Service account email: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>Each sheet must be shared with this email.`
+      : '';
     document.getElementById('coord-alerts').innerHTML = `
       <div class="banner banner-danger">
-        <strong>Could not load any store data.</strong>
-        Check the browser console (F12) for error details.
-        Common causes: service account not shared with the sheets, or credentials misconfigured.
+        <strong>Could not load any store data.</strong>${saEmail}
+        ${firstError.msg ? `<br><br>Error: <code>${firstError.msg}</code>` : ''}
       </div>`;
   }
 
