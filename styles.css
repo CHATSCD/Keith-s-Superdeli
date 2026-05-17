@@ -1,15 +1,16 @@
-/* Keith's Superdeli — Shared Styles
-   Brand palette: Keith's Blue #1464B4 · Keith's Red #CC1F2B
+/* Keith's Superstores — Shared Styles
+   Brand palette: Keith's Blue #1565C0 · Keith's Red #CC1F2B · Keith's Gold #FFD700
 */
 
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   /* Keith's Superstores brand */
-  --ks-blue:   #1464B4;
-  --ks-blue2:  #0D4A8A;
+  --ks-blue:   #1565C0;
+  --ks-blue2:  #0D47A1;
   --ks-red:    #CC1F2B;
   --ks-red2:   #A51820;
+  --ks-yellow: #FFD700;
 
   /* Role aliases (used throughout modules) */
   --navy:   var(--ks-blue);
@@ -49,13 +50,13 @@ body {
    APP HEADER
 ══════════════════════════════════════════ */
 #app-header {
-  background: linear-gradient(135deg, var(--ks-blue2) 0%, var(--ks-blue) 60%, #1a7ad4 100%);
+  background: linear-gradient(135deg, var(--ks-blue2) 0%, var(--ks-blue) 55%, #1976D2 100%);
   color: var(--white);
   padding: 0 16px;
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 3px 16px rgba(0,0,0,.25);
+  box-shadow: 0 3px 16px rgba(0,0,0,.30);
 }
 
 .header-inner {
@@ -76,23 +77,24 @@ body {
   text-decoration: none;
 }
 
-/* Paw-print logo mark */
+/* Cheetah logo mark */
 .logo-mark {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   background: var(--ks-red);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2),
+              0 0 0 2px var(--ks-yellow);
 }
 
 .logo-mark svg {
-  width: 26px;
-  height: 26px;
-  fill: white;
+  width: 34px;
+  height: 28px;
+  overflow: visible;
 }
 
 .brand-text {
@@ -103,21 +105,27 @@ body {
 
 .brand-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 800;
-  letter-spacing: .06em;
+  letter-spacing: .07em;
   text-transform: uppercase;
-  color: #ffffff;
-  text-shadow: 0 1px 4px rgba(0,0,0,.3);
+  color: var(--ks-red);
+  -webkit-text-stroke: 1.5px var(--ks-yellow);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 6px rgba(0,0,0,.35);
 }
 
 .brand-sub {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: .12em;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .1em;
   text-transform: uppercase;
-  color: rgba(255,255,255,.7);
-  margin-top: 2px;
+  color: var(--ks-red);
+  -webkit-text-stroke: 1px var(--ks-yellow);
+  paint-order: stroke fill;
+  margin-top: 1px;
+  text-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
 
 #store-badge {
