@@ -228,9 +228,10 @@
     initialized[tab] = true;
 
     if (tab === 'deli') {
+      const countSheetId = (typeof COUNT_SHEET_IDS !== 'undefined' && COUNT_SHEET_IDS[String(storeNum)]) || '';
       deliProInit(
         document.getElementById('module-deli'),
-        storeNum, storeName, sheetId, SA
+        storeNum, storeName, sheetId, SA, countSheetId
       );
     } else if (tab === 'inspection') {
       inspState = { answers: {}, photos: {}, ticket: null };
