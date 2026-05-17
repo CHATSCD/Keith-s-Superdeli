@@ -152,8 +152,30 @@
   const bottomNav = document.getElementById('bottom-nav');
   const badge     = document.getElementById('store-badge');
 
+  // Guard: serviceAccount.js must be present and populated.
+  // build.js generates it from Vercel env vars (SA_CLIENT_EMAIL, SA_PRIVATE_KEY).
+  const hasCreds = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL) &&
+                   (typeof PRIVATE_KEY !== 'undefined' && PRIVATE_KEY);
+
+  if (!hasCreds) {
+    badge.textContent = 'Setup Required';
+    document.getElementById('app-main').innerHTML = `
+      <div class="empty-state">
+        <div style="font-size:48px;margin-bottom:16px">🔑</div>
+        <h2>Service Account Not Configured</h2>
+        <p>The app needs Google Service Account credentials to connect to Google Sheets.</p>
+        <p style="margin-top:14px">Add these environment variables in your <strong>Vercel project settings</strong> and redeploy:</p>
+        <div style="text-align:left;max-width:480px;margin:16px auto;background:#fff;border-radius:10px;padding:16px;font-size:13px;line-height:2">
+          <div><code>SA_CLIENT_EMAIL</code> — service account email</div>
+          <div><code>SA_PRIVATE_KEY</code> — private key from the JSON key file</div>
+          <div><code>SA_FOLDER_ID</code> — Google Drive folder ID (optional)</div>
+        </div>
+        <p style="font-size:13px;color:var(--muted)">See the README for full setup instructions.</p>
+      </div>`;
+    return;
+  }
+
   // Build service-account credential object.
-  // PRIVATE_KEY + SERVICE_ACCOUNT_EMAIL come from serviceAccount.js (gitignored).
   const SA = {
     client_email: SERVICE_ACCOUNT_EMAIL,
     private_key:  PRIVATE_KEY,
