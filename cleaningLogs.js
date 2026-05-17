@@ -1,7 +1,38 @@
-// Module 3 — Equipment Cleaning Logs
+// Module 3 — Maintenance Logs
 // Depends on: sheetsApi.js, stores.js
 
 const CLEANING_LOGS = {
+  iceCreamMachine: {
+    label: 'Ice Cream Machine',
+    hasTemp: false,
+    hasPPM: false,
+    sections: [
+      {
+        title: 'Mix Level Check (Every Shift)',
+        tasks: [
+          'Chocolate mix level checked',
+          'Vanilla mix level checked',
+          '3rd Flavor level checked (if applicable)',
+          'Mix levels refilled as needed',
+          'Machine dispensing properly — no error codes',
+          'Drip tray emptied and sanitized',
+          'Exterior wiped clean',
+          'Serving area clean and organized',
+        ],
+      },
+      {
+        title: 'Weekly Maintenance (Every 7 Days)',
+        tasks: [
+          'Full disassembly and cleaning completed',
+          'All brushes used during cleaning',
+          'Lubricant applied per manufacturer spec',
+          'Sanitizer solution used correctly',
+          'Machine reassembled and tested',
+          'Weekly cleaning documented with date and initials',
+        ],
+      },
+    ],
+  },
   bakeryCase: {
     label: 'Bakery Case',
     hasTemp: false,
@@ -527,11 +558,11 @@ async function saveCleaningLog(logId, storeNum, storeName, sheetId, serviceAccou
   ];
 
   try {
-    await sheetsEnsureHeaders(serviceAccount, sheetId, 'Cleaning Logs', [
+    await sheetsEnsureHeaders(serviceAccount, sheetId, 'Maintenance Logs', [
       'Store #', 'Store Name', 'Date', 'Equipment', 'Employee',
       'Tasks Completed', 'Tasks Missed', 'PPM', 'Temp Readings', 'Notes',
     ]);
-    await sheetsAppend(serviceAccount, sheetId, 'Cleaning Logs!A1', [row]);
+    await sheetsAppend(serviceAccount, sheetId, 'Maintenance Logs!A1', [row]);
     statusEl.innerHTML = '<span style="color:var(--green)">Log saved successfully.</span>';
   } catch (err) {
     statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
@@ -573,7 +604,7 @@ function exportCleaningPDF(logId, storeNum, storeName, container) {
   doc.text(safeText("Keith's Superdeli"), L + 12, y + 20);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text(safeText(`${log.label} Cleaning Log`), L + 12, y + 36);
+  doc.text(safeText(`${log.label} Maintenance Log`), L + 12, y + 36);
   doc.text(safeText(`Store #${storeNum} - ${storeName}   Date: ${date}   Employee: ${initials}`), L + 12, y + 50);
   y += 68;
 

@@ -10,6 +10,7 @@ const DELI_TABS = {
   recipes:   { label: 'Recipes',    tab: 'Recipes',    headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',  headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   analytics: { label: 'Analytics',  virtual: true },
+  training:  { label: 'Training',   virtual: true },
 };
 
 const INVENTORY_CATEGORIES = ['Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beverages','Supplies','Other'];
@@ -74,6 +75,11 @@ async function switchDeliTab(container, tabId) {
 
   if (tabId === 'analytics') {
     renderAnalytics(content);
+    return;
+  }
+
+  if (tabId === 'training') {
+    renderTraining(content);
     return;
   }
 
@@ -813,5 +819,66 @@ function renderAnalytics(content) {
       <div class="banner-icon">ℹ</div>
       <div>Analytics reflects data loaded this session. Navigate each sub-tab to refresh.</div>
     </div>`}
+  `;
+}
+
+// ════════════════════════════════════════
+// TRAINING
+// ════════════════════════════════════════
+
+function renderTraining(content) {
+  const docs = [
+    {
+      icon: '📓',
+      title: 'Student Workbook',
+      desc: 'Spaceman 6235-C Cleaning — full step-by-step workbook for trainees',
+      url: 'https://drive.google.com/file/d/1mHmjSfumSFPrA-aO9RwP1zA5vfe__bWE/view',
+    },
+    {
+      icon: '📝',
+      title: 'Student Test',
+      desc: 'Spaceman 6235-C Cleaning — assessment to verify trainee competency',
+      url: 'https://drive.google.com/file/d/1Ea_BetNR6Fiu-cMWDvBl-eK2GAUHeRzf/view',
+    },
+    {
+      icon: '📋',
+      title: 'Instructor Manual',
+      desc: 'Spaceman 6235-C Cleaning — full instructor guide with teaching notes',
+      url: 'https://drive.google.com/file/d/1I6sj0wN1FqvrF9o9r-zEuIVkRY2bKr6K/view',
+    },
+    {
+      icon: '🗺️',
+      title: 'Quick Reference Guide',
+      desc: 'Spaceman 6235-C Cleaning — at-a-glance summary for trained staff',
+      url: 'https://drive.google.com/file/d/1v1ImjNsbkcrNWUnhsorMdIxsyFKKQBK5/view',
+    },
+  ];
+
+  const cards = docs.map(d => `
+    <a href="${d.url}" target="_blank" rel="noopener" style="
+      display:block;text-decoration:none;color:inherit;
+      background:#fff;border-radius:var(--radius);padding:18px 20px;
+      box-shadow:var(--shadow);border-left:4px solid var(--ks-blue);
+      margin-bottom:12px;
+    ">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px;flex-shrink:0">${d.icon}</div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--ks-blue)">${d.title}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px">${d.desc}</div>
+        </div>
+        <div style="margin-left:auto;color:var(--ks-blue);font-size:20px;flex-shrink:0">↗</div>
+      </div>
+    </a>
+  `).join('');
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title">🍦 Spaceman 6235-C — Training Materials</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Tap any document to open it. Documents open in Google Drive.
+      </p>
+      ${cards}
+    </div>
   `;
 }
