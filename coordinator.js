@@ -74,19 +74,21 @@ async function loadCoordinatorData(container, serviceAccount) {
     return;
   }
 
+  const firstError = { msg: '' };
   const rows = await Promise.allSettled(
     storeEntries.map(async ([num, store]) => {
       try {
         const data = await sheetsGet(serviceAccount, store.sheetId, 'Inspections!A2:L1000');
         const values = data.values || [];
         if (values.length === 0) {
-          return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
+          return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
         }
         // Last row is most recent inspection
         const last = values[values.length - 1];
         return {
           storeNum:  num,
           storeName: store.name,
+          sheetId:   store.sheetId,
           lastDate:  last[2] || '',
           score:     last[5] || '',
           nos:       last[7] || '0',
@@ -94,8 +96,8 @@ async function loadCoordinatorData(container, serviceAccount) {
           status:    last[11] || '',
         };
       } catch (err) {
-        console.error(`Store #${num} load failed:`, err.message);
-        return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
+        if (!firstError.msg) firstError.msg = err.message;
+        return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
     })
   );
@@ -104,11 +106,13 @@ async function loadCoordinatorData(container, serviceAccount) {
 
   const allFailed = coordAllRows.every(r => r.status === 'Error');
   if (allFailed) {
+    const saEmail = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+      ? `<br><br>Service account email: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>Each sheet must be shared with this email.`
+      : '';
     document.getElementById('coord-alerts').innerHTML = `
       <div class="banner banner-danger">
-        <strong>Could not load any store data.</strong>
-        Check the browser console (F12) for error details.
-        Common causes: service account not shared with the sheets, or credentials misconfigured.
+        <strong>Could not load any store data.</strong>${saEmail}
+        ${firstError.msg ? `<br><br>Error: <code>${firstError.msg}</code>` : ''}
       </div>`;
   }
 
@@ -167,6 +171,8 @@ function renderCoordTable(container, rows) {
     const status = row.status || computeStatus(row.followup);
     const cls = status === 'Overdue' ? 'row-overdue' : '';
     const statusCls = status === 'Overdue' ? 'status-overdue' : status === 'Pending' ? 'status-pending' : 'status-clear';
+    const appHref   = `/?store=${row.storeNum}`;
+    const sheetHref = row.sheetId ? `https://docs.google.com/spreadsheets/d/${row.sheetId}` : '';
     return `
       <tr class="${cls}">
         <td>${row.storeNum}</td>
@@ -176,6 +182,10 @@ function renderCoordTable(container, rows) {
         <td>${row.nos || '--'}</td>
         <td>${row.followup || '--'}</td>
         <td class="${statusCls}">${status}</td>
+        <td style="white-space:nowrap">
+          <a href="${appHref}" style="display:inline-block;margin-right:6px;padding:3px 8px;background:var(--ks-blue);color:#fff;border-radius:5px;font-size:11px;text-decoration:none">App</a>
+          ${sheetHref ? `<a href="${sheetHref}" target="_blank" rel="noopener" style="display:inline-block;padding:3px 8px;background:#0F9D58;color:#fff;border-radius:5px;font-size:11px;text-decoration:none">Sheet</a>` : ''}
+        </td>
       </tr>
     `;
   }).join('');
@@ -191,6 +201,7 @@ function renderCoordTable(container, rows) {
           <th>NOs</th>
           <th>Follow-up Due</th>
           <th>Status</th>
+          <th>Links</th>
         </tr>
       </thead>
       <tbody>${rowsHTML}</tbody>
