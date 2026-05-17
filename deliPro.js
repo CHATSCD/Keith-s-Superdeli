@@ -92,8 +92,17 @@ async function switchDeliTab(container, tabId) {
   try {
     const result = await sheetsGet(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1:Z1000`);
     deliState.data[tabId] = result.values || [];
-  } catch (_) {
-    deliState.data[tabId] = [];
+  } catch (err) {
+    const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+      ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
+      : '';
+    content.innerHTML = `
+      <div class="banner banner-danger">
+        <strong>Could not load data from Google Sheets.</strong>
+        <br>Error: <code>${err.message}</code>
+        ${saNote}
+      </div>`;
+    return;
   }
 
   switch (tabId) {
