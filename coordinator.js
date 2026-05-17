@@ -81,13 +81,14 @@ async function loadCoordinatorData(container, serviceAccount) {
         const data = await sheetsGet(serviceAccount, store.sheetId, 'Inspections!A2:L1000');
         const values = data.values || [];
         if (values.length === 0) {
-          return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
+          return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
         }
         // Last row is most recent inspection
         const last = values[values.length - 1];
         return {
           storeNum:  num,
           storeName: store.name,
+          sheetId:   store.sheetId,
           lastDate:  last[2] || '',
           score:     last[5] || '',
           nos:       last[7] || '0',
@@ -96,7 +97,7 @@ async function loadCoordinatorData(container, serviceAccount) {
         };
       } catch (err) {
         if (!firstError.msg) firstError.msg = err.message;
-        return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
+        return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
     })
   );
@@ -170,6 +171,8 @@ function renderCoordTable(container, rows) {
     const status = row.status || computeStatus(row.followup);
     const cls = status === 'Overdue' ? 'row-overdue' : '';
     const statusCls = status === 'Overdue' ? 'status-overdue' : status === 'Pending' ? 'status-pending' : 'status-clear';
+    const appHref   = `/?store=${row.storeNum}`;
+    const sheetHref = row.sheetId ? `https://docs.google.com/spreadsheets/d/${row.sheetId}` : '';
     return `
       <tr class="${cls}">
         <td>${row.storeNum}</td>
@@ -179,6 +182,10 @@ function renderCoordTable(container, rows) {
         <td>${row.nos || '--'}</td>
         <td>${row.followup || '--'}</td>
         <td class="${statusCls}">${status}</td>
+        <td style="white-space:nowrap">
+          <a href="${appHref}" style="display:inline-block;margin-right:6px;padding:3px 8px;background:var(--ks-blue);color:#fff;border-radius:5px;font-size:11px;text-decoration:none">App</a>
+          ${sheetHref ? `<a href="${sheetHref}" target="_blank" rel="noopener" style="display:inline-block;padding:3px 8px;background:#0F9D58;color:#fff;border-radius:5px;font-size:11px;text-decoration:none">Sheet</a>` : ''}
+        </td>
       </tr>
     `;
   }).join('');
@@ -194,6 +201,7 @@ function renderCoordTable(container, rows) {
           <th>NOs</th>
           <th>Follow-up Due</th>
           <th>Status</th>
+          <th>Links</th>
         </tr>
       </thead>
       <tbody>${rowsHTML}</tbody>
