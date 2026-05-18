@@ -12,14 +12,8 @@ async function coordinatorInit(container, serviceAccount) {
 
 function buildCoordinatorShell() {
   return `
-    <div class="card" style="text-align:center;padding:20px 16px 16px">
-      <img src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png"
-           alt="Keith's Superstores"
-           style="height:70px;width:auto;display:block;margin:0 auto 10px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.15))">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;
-                  letter-spacing:.1em;text-transform:uppercase;color:var(--ks-blue2);margin-bottom:4px">
-        Food &amp; Beverage Department Dashboard
-      </div>
+    <div class="card">
+      <div class="card-title" style="font-size:18px">Food &amp; Beverage Department Dashboard</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:0">
         Showing all stores. Data pulled live from each store's Google Sheet.
       </p>
