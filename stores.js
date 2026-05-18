@@ -2,7 +2,6 @@
 const STORE_NAMES = {
   '59':  'Moselle',
   '60':  'Wilmer',
-  '62':  'Hurley',
   '80':  'Lucedale',
   '81':  'Lucedale',
   '82':  'Hurley',
@@ -67,7 +66,6 @@ const COUNT_SHEET_IDS = {
 const SHEET_IDS = {
   '59':  '1jtr6ImbWYKlJlWS3vOODLXMIPNWciLLIC8jwWf9-Ndg',
   '60':  '1eGse-kalezUhOzhXxla1mJxAAcLula64iGOiaeff0Hs',
-  '62':  '1FHhOJKsfl6DvaMYffOzW_-c7YKPJsrWLbRm-opQRl7Y',
   '80':  '1J7xGEkQeTRr-UjAaw_hVDPq9E5PQMaUhd6bpwLCEHvQ',
   '81':  '11eixrFbRojOKxeU4s4ZRfvzbeVIn3AlfskW2BXMDtHQ',
   '82':  '1K8QX_aMSec-wmTfegbgi0MBnKvRpWOJ67QGatIlQYi8',
