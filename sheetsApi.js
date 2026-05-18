@@ -111,16 +111,56 @@ async function getAccessToken(sa) {
   return _tokenInflight;
 }
 
+// ---------- Read cache (avoids redundant fetches when switching tabs) ----------
+
+const _readCache = new Map();
+const READ_CACHE_TTL = 120_000; // 2 minutes
+
+function _cacheKey(sheetId, range) { return `${sheetId}\x00${range}`; }
+
+function sheetsInvalidate(sheetId) {
+  for (const k of _readCache.keys()) {
+    if (k.startsWith(sheetId + '\x00')) _readCache.delete(k);
+  }
+}
+
 // ---------- Sheets read/write ----------
 
-async function sheetsGet(serviceAccount, sheetId, range) {
+async function _sheetsGetRaw(serviceAccount, sheetId, range) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}`;
   const resp = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!resp.ok) throw new Error(`Sheets GET failed: ${await resp.text()}`);
+  if (!resp.ok) {
+    const body = await resp.text();
+    const isRateLimit = resp.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(body);
+    const err = new Error(`Sheets GET failed: ${body}`);
+    err.isRateLimit = isRateLimit;
+    throw err;
+  }
   return resp.json();
+}
+
+async function sheetsGet(serviceAccount, sheetId, range) {
+  const key = _cacheKey(sheetId, range);
+  const hit = _readCache.get(key);
+  if (hit && Date.now() < hit.exp) return hit.data;
+
+  // Retry up to 3 times with exponential backoff on rate-limit errors
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await _sheetsGetRaw(serviceAccount, sheetId, range);
+      _readCache.set(key, { data, exp: Date.now() + READ_CACHE_TTL });
+      return data;
+    } catch (err) {
+      lastErr = err;
+      if (!err.isRateLimit || attempt === 2) break;
+      await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt))); // 1.5s, 3s
+    }
+  }
+  throw lastErr;
 }
 
 async function sheetsAppend(serviceAccount, sheetId, range, values) {

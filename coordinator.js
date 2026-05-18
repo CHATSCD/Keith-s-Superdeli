@@ -77,6 +77,18 @@ function buildCoordinatorShell() {
 
 let coordAllRows = [];
 
+// Fetch in batches of 5 to stay under the 60 req/min Sheets quota
+async function batchSettled(items, fn, batchSize = 5) {
+  const results = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const settled = await Promise.allSettled(batch.map(fn));
+    results.push(...settled);
+    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
+  }
+  return results;
+}
+
 async function loadCoordinatorData(container, serviceAccount) {
   const storeEntries = Object.entries(STORES).filter(([, s]) => s.sheetId);
 
@@ -91,8 +103,7 @@ async function loadCoordinatorData(container, serviceAccount) {
   }
 
   const firstError = { msg: '' };
-  const rows = await Promise.allSettled(
-    storeEntries.map(async ([num, store]) => {
+  const rows = await batchSettled(storeEntries, async ([num, store]) => {
       try {
         const data = await sheetsGet(serviceAccount, store.sheetId, 'Inspections!A2:L1000');
         const values = data.values || [];
@@ -264,16 +275,14 @@ async function loadFoodCostSummary(container, storeEntries, serviceAccount) {
   const wrap = document.getElementById('food-cost-table-wrap');
   if (!wrap) return;
 
-  const results = await Promise.allSettled(
-    storeEntries.slice(0, 20).map(async ([num, store]) => { // limit to first 20 for perf
-      try {
-        const data = await sheetsGet(serviceAccount, store.sheetId, 'Deli Pro!A1:Z5');
-        return { storeNum: num, storeName: store.name, data: data.values || [] };
-      } catch (_) {
-        return { storeNum: num, storeName: store.name, data: [] };
-      }
-    })
-  );
+  const results = await batchSettled(storeEntries.slice(0, 20), async ([num, store]) => {
+    try {
+      const data = await sheetsGet(serviceAccount, store.sheetId, 'Deli Pro!A1:Z5');
+      return { storeNum: num, storeName: store.name, data: data.values || [] };
+    } catch (_) {
+      return { storeNum: num, storeName: store.name, data: [] };
+    }
+  });
 
   const rows = results
     .map(r => r.value)
