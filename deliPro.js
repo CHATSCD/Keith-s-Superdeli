@@ -172,43 +172,73 @@ function renderCountSheet(content, raw) {
     return;
   }
 
-  // Detect headers from row 1, or fall back to letter labels
   const headerRow = raw[0] || [];
 
-  // Find the "On Hand" / count column by scanning header text
+  // Find the On Hand / count column — scan headers first, then default to col E (index 4)
   let countColIdx = -1;
   for (let i = 0; i < headerRow.length; i++) {
-    const h = (headerRow[i] || '').toLowerCase();
-    if (/on.?hand|count|qty|quantity|amount/i.test(h)) { countColIdx = i; break; }
+    if (/on.?hand|count|qty|quantity|amount/i.test(headerRow[i] || '')) { countColIdx = i; break; }
   }
-  // Default to column E (index 4) if not found by header name
   if (countColIdx === -1) countColIdx = 4;
 
-  const headers = headerRow.map((h, i) => h || String.fromCharCode(65 + i));
+  // Find a STATUS column (for color coding)
+  let statusColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (/status/i.test(headerRow[i] || '')) { statusColIdx = i; break; }
+  }
+  // If no STATUS header, check last column of the widest data row for OUT/LOW/OK pattern
+  if (statusColIdx === -1) {
+    const sample = raw.slice(1).find(r => r.length >= 8);
+    if (sample) {
+      const last = (sample[sample.length - 1] || '').trim();
+      if (/^(out|low|ok|no.?par)$/i.test(last)) statusColIdx = sample.length - 1;
+    }
+  }
 
-  // Build table rows — detect section headers (rows with only one non-empty cell in col B, no count value)
+  // Build display headers — label blank count column as "On Hand"
+  const numCols = Math.max(...raw.map(r => r.length), 1);
+  const headers = Array.from({ length: numCols }, (_, i) => {
+    if (i === countColIdx) return 'On Hand';
+    return (headerRow[i] || '').trim() || null; // null = hide column
+  });
+
+  // Count visible columns (non-null headers or count col)
+  const visibleCols = headers.filter((h, i) => h !== null || i === countColIdx);
+
+  const statusColor = v => {
+    const s = (v || '').toUpperCase();
+    if (s === 'OUT')    return 'color:var(--red);font-weight:700';
+    if (s === 'LOW')    return 'color:var(--amber);font-weight:700';
+    if (s === 'OK')     return 'color:var(--green);font-weight:600';
+    if (/NO.?PAR/i.test(s)) return 'color:var(--muted)';
+    return '';
+  };
+
   const rowsHTML = raw.slice(1).map((r, rawIdx) => {
-    const sheetRow = rawIdx + 2; // 1-based, accounting for header row
-    const allEmpty = r.every(c => !(c || '').trim());
-    if (allEmpty) return '';
+    const sheetRow = rawIdx + 2;
+    if (r.every(c => !(c || '').trim())) return '';
 
-    // Section header: only col B has content, count col is empty
-    const colA = (r[0] || '').trim();
-    const colB = (r[1] || '').trim();
-    const countVal = (r[countColIdx] || '').trim();
+    const colA    = (r[0] || '').trim();
+    const colB    = (r[1] || '').trim();
+    const countV  = (r[countColIdx] || '').trim();
     const nonEmpty = r.filter(c => (c || '').trim()).length;
-    const isHeader = !colA && colB && !countVal && nonEmpty <= 2;
 
-    if (isHeader) {
+    // Section header row: product col empty, name col has text, no count, few cells populated
+    if (!colA && colB && !countV && nonEmpty <= 3) {
       return `<tr>
-        <td colspan="${headers.length}" style="font-weight:700;font-size:13px;background:var(--ks-blue);color:#fff;padding:6px 10px;letter-spacing:.04em">${colB}</td>
+        <td colspan="${numCols}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
       </tr>`;
     }
 
-    const cells = headers.map((_, i) => {
+    const cells = headers.map((h, i) => {
+      if (h === null) return ''; // skip hidden columns
       const val = (r[i] || '').trim();
+
       if (i === countColIdx) {
-        return `<td style="padding:4px 6px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:80px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+        return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+      }
+      if (i === statusColIdx && val) {
+        return `<td style="${statusColor(val)}">${val}</td>`;
       }
       return `<td>${val}</td>`;
     }).join('');
@@ -216,13 +246,22 @@ function renderCountSheet(content, raw) {
     return `<tr>${cells}</tr>`;
   }).join('');
 
-  const colHeaders = headers.map(h => `<th>${h}</th>`).join('');
+  const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('');
+
+  // Summary: count OUT items
+  const outCount = raw.slice(1).filter(r => {
+    const s = statusColIdx >= 0 ? (r[statusColIdx] || '') : '';
+    return /^out$/i.test(s.trim());
+  }).length;
 
   content.innerHTML = `
     <div class="card">
-      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-        Count Sheet
-        <span style="font-size:12px;font-weight:400;color:var(--muted)">Type a count and press Enter or tab to save</span>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Inventory Count Sheet</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
+          <span style="font-size:12px;font-weight:400;color:var(--muted)">Type count → Enter to save</span>
+        </span>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -233,17 +272,15 @@ function renderCountSheet(content, raw) {
     </div>
   `;
 
-  // Wire up save-on-blur for every count input
   content.querySelectorAll('.cs-count-input').forEach(input => {
     const saveCount = async () => {
-      const sheetRow = input.dataset.csRow;
-      const colIdx   = parseInt(input.dataset.csCol, 10);
+      const sheetRow  = input.dataset.csRow;
+      const colIdx    = parseInt(input.dataset.csCol, 10);
       if (!sheetRow || isNaN(colIdx)) return;
       const colLetter = String.fromCharCode(65 + colIdx);
-      const val = input.value;
       input.style.borderColor = 'var(--ks-blue)';
       try {
-        await sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[val]]);
+        await sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[input.value]]);
         input.style.borderColor = 'var(--green)';
         setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
       } catch (_) {
