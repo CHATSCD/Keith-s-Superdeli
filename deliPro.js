@@ -24,7 +24,6 @@ const deliState = {
   countSheetId: null,
   activeTab: 'inventory',
   data: {},
-  csRowMap: {}, // inventoryRowIndex → countSheet sheet row number (1-based)
 };
 
 // ════════════════════════════════════════
@@ -106,7 +105,7 @@ async function switchDeliTab(container, tabId) {
   if (tabId === 'inventory' && deliState.countSheetId) {
     let raw;
     try {
-      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:G1000');
+      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:Z1000');
       raw = result.values || [];
     } catch (err) {
       content.innerHTML = `
@@ -117,48 +116,7 @@ async function switchDeliTab(container, tabId) {
       return;
     }
 
-    // Transform count sheet rows → Inventory format.
-    // Count sheet columns: [Count By, Product Description, Product #, Pack Size, On Hand, Price, Total]
-    // Section header rows have no unit (col A empty) and no price/total — use as category.
-    let currentCat = 'Other';
-    const today    = new Date().toLocaleDateString();
-    const invRows  = [];
-    deliState.csRowMap = {};
-
-    raw.slice(1).forEach((r, rawIdx) => {
-      const unit    = (r[0] || '').trim();
-      const product = (r[1] || '').trim();
-      const onHand  = (r[4] || '').trim();
-      const price   = (r[5] || '').replace(/[$,]/g, '').trim();
-
-      // Section header: no unit, all-caps vendor name, no price/total
-      if (!unit && product && !(r[5] || '').trim() && !(r[6] || '').trim()) {
-        currentCat = product;
-        return;
-      }
-      if (!unit || !product) return;
-      if (/total|over|short/i.test(product)) return;
-
-      // rawIdx is 0-based within slice(1), so sheet row = rawIdx + 2 (header is row 1)
-      deliState.csRowMap[invRows.length] = rawIdx + 2;
-      invRows.push([product, currentCat, unit, onHand || '0', '', '', price, '', today]);
-    });
-
-    deliState.data.inventory = [DELI_TABS.inventory.headers, ...invRows];
-
-    // Write to the store's Deli Pro sheet — clear old rows then write fresh.
-    if (deliState.sheetId) {
-      try {
-        await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Inventory', DELI_TABS.inventory.headers);
-        await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2:I1000',
-          Array(999).fill(['', '', '', '', '', '', '', '', '']));
-        if (invRows.length) {
-          await sheetsUpdate(deliState.sa, deliState.sheetId, 'Inventory!A2', invRows);
-        }
-      } catch (_) { /* sheet write errors are non-fatal for display */ }
-    }
-
-    renderInventory(content, deliState.data.inventory);
+    renderCountSheet(content, raw);
     return;
   }
 
@@ -204,9 +162,101 @@ function reloadTab() {
 // INVENTORY
 // ════════════════════════════════════════
 
+// ════════════════════════════════════════
+// COUNT SHEET (native display, no conversion)
+// ════════════════════════════════════════
+
+function renderCountSheet(content, raw) {
+  if (!raw || raw.length === 0) {
+    content.innerHTML = '<div class="empty-state"><p>Count sheet is empty.</p></div>';
+    return;
+  }
+
+  // Detect headers from row 1, or fall back to letter labels
+  const headerRow = raw[0] || [];
+
+  // Find the "On Hand" / count column by scanning header text
+  let countColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    const h = (headerRow[i] || '').toLowerCase();
+    if (/on.?hand|count|qty|quantity|amount/i.test(h)) { countColIdx = i; break; }
+  }
+  // Default to column E (index 4) if not found by header name
+  if (countColIdx === -1) countColIdx = 4;
+
+  const headers = headerRow.map((h, i) => h || String.fromCharCode(65 + i));
+
+  // Build table rows — detect section headers (rows with only one non-empty cell in col B, no count value)
+  const rowsHTML = raw.slice(1).map((r, rawIdx) => {
+    const sheetRow = rawIdx + 2; // 1-based, accounting for header row
+    const allEmpty = r.every(c => !(c || '').trim());
+    if (allEmpty) return '';
+
+    // Section header: only col B has content, count col is empty
+    const colA = (r[0] || '').trim();
+    const colB = (r[1] || '').trim();
+    const countVal = (r[countColIdx] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').trim()).length;
+    const isHeader = !colA && colB && !countVal && nonEmpty <= 2;
+
+    if (isHeader) {
+      return `<tr>
+        <td colspan="${headers.length}" style="font-weight:700;font-size:13px;background:var(--ks-blue);color:#fff;padding:6px 10px;letter-spacing:.04em">${colB}</td>
+      </tr>`;
+    }
+
+    const cells = headers.map((_, i) => {
+      const val = (r[i] || '').trim();
+      if (i === countColIdx) {
+        return `<td style="padding:4px 6px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:80px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+      }
+      return `<td>${val}</td>`;
+    }).join('');
+
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const colHeaders = headers.map(h => `<th>${h}</th>`).join('');
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        Count Sheet
+        <span style="font-size:12px;font-weight:400;color:var(--muted)">Type a count and press Enter or tab to save</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>${colHeaders}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Wire up save-on-blur for every count input
+  content.querySelectorAll('.cs-count-input').forEach(input => {
+    const saveCount = async () => {
+      const sheetRow = input.dataset.csRow;
+      const colIdx   = parseInt(input.dataset.csCol, 10);
+      if (!sheetRow || isNaN(colIdx)) return;
+      const colLetter = String.fromCharCode(65 + colIdx);
+      const val = input.value;
+      input.style.borderColor = 'var(--ks-blue)';
+      try {
+        await sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[val]]);
+        input.style.borderColor = 'var(--green)';
+        setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
+      } catch (_) {
+        input.style.borderColor = 'var(--red)';
+      }
+    };
+    input.addEventListener('blur', saveCount);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  });
+}
+
 function renderInventory(content, rows) {
-  const dataRows  = rows.length > 1 ? rows.slice(1) : [];
-  const hasCS     = !!deliState.countSheetId;
+  const dataRows = rows.length > 1 ? rows.slice(1) : [];
 
   const lowItems = dataRows.filter(r => {
     const count   = parseFloat(r[3]) || 0;
@@ -214,21 +264,17 @@ function renderInventory(content, rows) {
     return reorder > 0 && count <= reorder;
   });
 
-  const bodyHTML = dataRows.length ? dataRows.map((r, i) => {
+  const bodyHTML = dataRows.length ? dataRows.map(r => {
     const oor = (() => {
       const count = parseFloat(r[3]) || 0;
       const reorder = parseFloat(r[5]) || 0;
       return reorder > 0 && count <= reorder;
     })();
-    const csRow = hasCS ? (deliState.csRowMap[i] || '') : '';
-    const countCell = hasCS
-      ? `<td><input type="number" class="cs-count-input" data-cs-row="${csRow}" value="${r[3]||''}" min="0" step="0.01" style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`
-      : `<td style="font-weight:700;color:${oor?'var(--red)':'inherit'}">${r[3]||''}</td>`;
     return `<tr class="${oor ? 'row-overdue' : ''}">
       <td style="font-weight:600">${r[0]||''}</td>
       <td>${r[1]||''}</td>
       <td>${r[2]||''}</td>
-      ${countCell}
+      <td style="font-weight:700;color:${oor?'var(--red)':'inherit'}">${r[3]||''}</td>
       <td>${r[4]||''}</td>
       <td>${r[5]||''}</td>
       <td>$${r[6]||''}</td>
@@ -322,26 +368,6 @@ function renderInventory(content, rows) {
     } finally { btn.disabled=false; btn.textContent='Save Item'; }
   });
 
-  // Count sheet: inline editable count inputs save back to the count sheet On Hand column (E)
-  if (hasCS) {
-    content.querySelectorAll('.cs-count-input').forEach(input => {
-      const saveCount = async () => {
-        const sheetRow = input.dataset.csRow;
-        if (!sheetRow) return;
-        const val = input.value;
-        input.style.borderColor = 'var(--ks-blue)';
-        try {
-          await sheetsUpdate(deliState.sa, deliState.countSheetId, `E${sheetRow}`, [[val]]);
-          input.style.borderColor = 'var(--green)';
-          setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
-        } catch (_) {
-          input.style.borderColor = 'var(--red)';
-        }
-      };
-      input.addEventListener('blur', saveCount);
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
-    });
-  }
 }
 
 // ════════════════════════════════════════
