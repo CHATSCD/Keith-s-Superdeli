@@ -24,6 +24,7 @@ const deliState = {
   countSheetId: null,
   activeTab: 'inventory',
   data: {},
+  csRowMap: {}, // inventoryRowIndex → countSheet sheet row number (1-based)
 };
 
 // ════════════════════════════════════════
@@ -122,8 +123,9 @@ async function switchDeliTab(container, tabId) {
     let currentCat = 'Other';
     const today    = new Date().toLocaleDateString();
     const invRows  = [];
+    deliState.csRowMap = {};
 
-    raw.slice(1).forEach(r => {
+    raw.slice(1).forEach((r, rawIdx) => {
       const unit    = (r[0] || '').trim();
       const product = (r[1] || '').trim();
       const onHand  = (r[4] || '').trim();
@@ -137,6 +139,8 @@ async function switchDeliTab(container, tabId) {
       if (!unit || !product) return;
       if (/total|over|short/i.test(product)) return;
 
+      // rawIdx is 0-based within slice(1), so sheet row = rawIdx + 2 (header is row 1)
+      deliState.csRowMap[invRows.length] = rawIdx + 2;
       invRows.push([product, currentCat, unit, onHand || '0', '', '', price, '', today]);
     });
 
@@ -201,7 +205,8 @@ function reloadTab() {
 // ════════════════════════════════════════
 
 function renderInventory(content, rows) {
-  const dataRows = rows.length > 1 ? rows.slice(1) : [];
+  const dataRows  = rows.length > 1 ? rows.slice(1) : [];
+  const hasCS     = !!deliState.countSheetId;
 
   const lowItems = dataRows.filter(r => {
     const count   = parseFloat(r[3]) || 0;
@@ -209,17 +214,21 @@ function renderInventory(content, rows) {
     return reorder > 0 && count <= reorder;
   });
 
-  const bodyHTML = dataRows.length ? dataRows.map(r => {
+  const bodyHTML = dataRows.length ? dataRows.map((r, i) => {
     const oor = (() => {
       const count = parseFloat(r[3]) || 0;
       const reorder = parseFloat(r[5]) || 0;
       return reorder > 0 && count <= reorder;
     })();
+    const csRow = hasCS ? (deliState.csRowMap[i] || '') : '';
+    const countCell = hasCS
+      ? `<td><input type="number" class="cs-count-input" data-cs-row="${csRow}" value="${r[3]||''}" min="0" step="0.01" style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`
+      : `<td style="font-weight:700;color:${oor?'var(--red)':'inherit'}">${r[3]||''}</td>`;
     return `<tr class="${oor ? 'row-overdue' : ''}">
       <td style="font-weight:600">${r[0]||''}</td>
       <td>${r[1]||''}</td>
       <td>${r[2]||''}</td>
-      <td style="font-weight:700;color:${oor?'var(--red)':'inherit'}">${r[3]||''}</td>
+      ${countCell}
       <td>${r[4]||''}</td>
       <td>${r[5]||''}</td>
       <td>$${r[6]||''}</td>
@@ -312,6 +321,27 @@ function renderInventory(content, rows) {
       statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally { btn.disabled=false; btn.textContent='Save Item'; }
   });
+
+  // Count sheet: inline editable count inputs save back to the count sheet On Hand column (E)
+  if (hasCS) {
+    content.querySelectorAll('.cs-count-input').forEach(input => {
+      const saveCount = async () => {
+        const sheetRow = input.dataset.csRow;
+        if (!sheetRow) return;
+        const val = input.value;
+        input.style.borderColor = 'var(--ks-blue)';
+        try {
+          await sheetsUpdate(deliState.sa, deliState.countSheetId, `E${sheetRow}`, [[val]]);
+          input.style.borderColor = 'var(--green)';
+          setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
+        } catch (_) {
+          input.style.borderColor = 'var(--red)';
+        }
+      };
+      input.addEventListener('blur', saveCount);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+    });
+  }
 }
 
 // ════════════════════════════════════════
