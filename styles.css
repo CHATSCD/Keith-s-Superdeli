@@ -77,6 +77,13 @@ body {
   text-decoration: none;
 }
 
+.header-real-logo {
+  height: 44px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 1px 4px rgba(0,0,0,.3));
+}
+
 /* Cheetah logo mark */
 .logo-mark {
   width: 46px;
