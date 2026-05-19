@@ -4,12 +4,16 @@
 async function coordinatorInit(container, serviceAccount) {
   container.innerHTML = buildCoordinatorShell();
   await loadCoordinatorData(container, serviceAccount);
+
+  document.getElementById('backup-all-btn')?.addEventListener('click', () => {
+    backupAllStores(serviceAccount);
+  });
 }
 
 function buildCoordinatorShell() {
   return `
     <div class="card">
-      <div class="card-title" style="font-size:18px">Chain-Wide Operations Dashboard</div>
+      <div class="card-title" style="font-size:18px">Food &amp; Beverage Department Dashboard</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:0">
         Showing all stores. Data pulled live from each store's Google Sheet.
       </p>
@@ -56,10 +60,34 @@ function buildCoordinatorShell() {
         <div class="loading-state"><div class="spinner"></div><p>Loading food cost data...</p></div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Weekly Inventory Backup</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Creates a dated snapshot of every store's Inventory tab. Keeps the last
+        4 weekly backups per store — older ones are removed automatically.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="backup-all-btn">Backup All Stores Now</button>
+      </div>
+      <div id="backup-status" style="margin-top:8px"></div>
+    </div>
   `;
 }
 
 let coordAllRows = [];
+
+// Fetch in batches of 5 to stay under the 60 req/min Sheets quota
+async function batchSettled(items, fn, batchSize = 5) {
+  const results = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const settled = await Promise.allSettled(batch.map(fn));
+    results.push(...settled);
+    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
+  }
+  return results;
+}
 
 async function loadCoordinatorData(container, serviceAccount) {
   const storeEntries = Object.entries(STORES).filter(([, s]) => s.sheetId);
@@ -74,32 +102,46 @@ async function loadCoordinatorData(container, serviceAccount) {
     return;
   }
 
-  const rows = await Promise.allSettled(
-    storeEntries.map(async ([num, store]) => {
+  const firstError = { msg: '' };
+  const rows = await batchSettled(storeEntries, async ([num, store]) => {
       try {
         const data = await sheetsGet(serviceAccount, store.sheetId, 'Inspections!A2:L1000');
         const values = data.values || [];
         if (values.length === 0) {
-          return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
+          return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'No Data' };
         }
         // Last row is most recent inspection
         const last = values[values.length - 1];
         return {
           storeNum:  num,
           storeName: store.name,
+          sheetId:   store.sheetId,
           lastDate:  last[2] || '',
           score:     last[5] || '',
           nos:       last[7] || '0',
           followup:  last[10] || '',
           status:    last[11] || '',
         };
-      } catch (_) {
-        return { storeNum: num, storeName: store.name, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
+      } catch (err) {
+        if (!firstError.msg) firstError.msg = err.message;
+        return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
-    })
-  );
+    });
 
   coordAllRows = rows.map(r => r.value || r.reason);
+
+  const allFailed = coordAllRows.every(r => r.status === 'Error');
+  if (allFailed) {
+    const saEmail = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+      ? `<br><br>Service account email: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>Each sheet must be shared with this email.`
+      : '';
+    document.getElementById('coord-alerts').innerHTML = `
+      <div class="banner banner-danger">
+        <strong>Could not load any store data.</strong>${saEmail}
+        ${firstError.msg ? `<br><br>Error: <code>${firstError.msg}</code>` : ''}
+      </div>`;
+  }
+
   renderCoordTable(container, coordAllRows);
   renderAlerts(container, coordAllRows);
   await loadFoodCostSummary(container, storeEntries, serviceAccount);
@@ -155,6 +197,8 @@ function renderCoordTable(container, rows) {
     const status = row.status || computeStatus(row.followup);
     const cls = status === 'Overdue' ? 'row-overdue' : '';
     const statusCls = status === 'Overdue' ? 'status-overdue' : status === 'Pending' ? 'status-pending' : 'status-clear';
+    const appHref   = `/?store=${row.storeNum}`;
+    const sheetHref = row.sheetId ? `https://docs.google.com/spreadsheets/d/${row.sheetId}` : '';
     return `
       <tr class="${cls}">
         <td>${row.storeNum}</td>
@@ -164,6 +208,10 @@ function renderCoordTable(container, rows) {
         <td>${row.nos || '--'}</td>
         <td>${row.followup || '--'}</td>
         <td class="${statusCls}">${status}</td>
+        <td style="white-space:nowrap">
+          <a href="${appHref}" style="display:inline-block;margin-right:6px;padding:3px 8px;background:var(--ks-blue);color:#fff;border-radius:5px;font-size:11px;text-decoration:none">App</a>
+          ${sheetHref ? `<a href="${sheetHref}" target="_blank" rel="noopener" style="display:inline-block;padding:3px 8px;background:#0F9D58;color:#fff;border-radius:5px;font-size:11px;text-decoration:none">Sheet</a>` : ''}
+        </td>
       </tr>
     `;
   }).join('');
@@ -179,6 +227,7 @@ function renderCoordTable(container, rows) {
           <th>NOs</th>
           <th>Follow-up Due</th>
           <th>Status</th>
+          <th>Links</th>
         </tr>
       </thead>
       <tbody>${rowsHTML}</tbody>
@@ -225,16 +274,14 @@ async function loadFoodCostSummary(container, storeEntries, serviceAccount) {
   const wrap = document.getElementById('food-cost-table-wrap');
   if (!wrap) return;
 
-  const results = await Promise.allSettled(
-    storeEntries.slice(0, 20).map(async ([num, store]) => { // limit to first 20 for perf
-      try {
-        const data = await sheetsGet(serviceAccount, store.sheetId, 'Deli Pro!A1:Z5');
-        return { storeNum: num, storeName: store.name, data: data.values || [] };
-      } catch (_) {
-        return { storeNum: num, storeName: store.name, data: [] };
-      }
-    })
-  );
+  const results = await batchSettled(storeEntries.slice(0, 20), async ([num, store]) => {
+    try {
+      const data = await sheetsGet(serviceAccount, store.sheetId, 'Deli Pro!A1:Z5');
+      return { storeNum: num, storeName: store.name, data: data.values || [] };
+    } catch (_) {
+      return { storeNum: num, storeName: store.name, data: [] };
+    }
+  });
 
   const rows = results
     .map(r => r.value)
