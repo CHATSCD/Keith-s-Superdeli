@@ -126,8 +126,7 @@ async function loadCoordinatorData(container, serviceAccount) {
         if (!firstError.msg) firstError.msg = err.message;
         return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
-    })
-  );
+    });
 
   coordAllRows = rows.map(r => r.value || r.reason);
 
