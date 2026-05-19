@@ -29,8 +29,9 @@ async function signJWT(header, payload, pemKey) {
   const p = base64url(JSON.stringify(payload));
   const sigInput = enc.encode(`${h}.${p}`);
 
-  // Strip PEM wrapper and decode
+  // Normalize: handle literal \n sequences that some env var tools produce
   const pemBody = pemKey
+    .replace(/\\n/g, '\n')
     .replace(/-----[^-]+-----/g, '')
     .replace(/\s/g, '');
   const binaryDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
@@ -50,6 +51,13 @@ async function signJWT(header, payload, pemKey) {
 // ---------- Token cache ----------
 
 let _tokenCache = { token: null, expiry: 0 };
+let _tokenInflight = null;
+
+function fetchWithTimeout(url, options, ms = 20000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
 
 // sa = { client_email, private_key, scopes? }
 // client_email  = SERVICE_ACCOUNT_EMAIL
@@ -60,55 +68,105 @@ async function getAccessToken(sa) {
   if (_tokenCache.token && now < _tokenCache.expiry - 30) {
     return _tokenCache.token;
   }
+  // Deduplicate: if a token fetch is already in flight, reuse it
+  if (_tokenInflight) return _tokenInflight;
 
-  const scopeStr = (sa.scopes || DEFAULT_SCOPES).join(' ');
+  _tokenInflight = (async () => {
+    try {
+      const scopeStr = (sa.scopes || DEFAULT_SCOPES).join(' ');
+      const ts = Math.floor(Date.now() / 1000);
+      const header  = { alg: 'RS256', typ: 'JWT' };
+      const payload = {
+        iss: sa.client_email,
+        scope: scopeStr,
+        aud: TOKEN_URI,
+        iat: ts,
+        exp: ts + 3600,
+      };
 
-  const header  = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: sa.client_email,
-    scope: scopeStr,
-    aud: TOKEN_URI,
-    iat: now,
-    exp: now + 3600,
-  };
+      const jwt = await signJWT(header, payload, sa.private_key);
 
-  const jwt = await signJWT(header, payload, sa.private_key);
+      const resp = await fetchWithTimeout(TOKEN_URI, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion: jwt,
+        }),
+      });
 
-  const resp = await fetch(TOKEN_URI, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  });
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`Token fetch failed: ${err}`);
+      }
 
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Token fetch failed: ${err}`);
+      const data = await resp.json();
+      _tokenCache = { token: data.access_token, expiry: ts + data.expires_in };
+      return data.access_token;
+    } finally {
+      _tokenInflight = null;
+    }
+  })();
+
+  return _tokenInflight;
+}
+
+// ---------- Read cache (avoids redundant fetches when switching tabs) ----------
+
+const _readCache = new Map();
+const READ_CACHE_TTL = 120_000; // 2 minutes
+
+function _cacheKey(sheetId, range) { return `${sheetId}\x00${range}`; }
+
+function sheetsInvalidate(sheetId) {
+  for (const k of _readCache.keys()) {
+    if (k.startsWith(sheetId + '\x00')) _readCache.delete(k);
   }
-
-  const data = await resp.json();
-  _tokenCache = { token: data.access_token, expiry: now + data.expires_in };
-  return data.access_token;
 }
 
 // ---------- Sheets read/write ----------
 
-async function sheetsGet(serviceAccount, sheetId, range) {
+async function _sheetsGetRaw(serviceAccount, sheetId, range) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!resp.ok) throw new Error(`Sheets GET failed: ${await resp.text()}`);
+  if (!resp.ok) {
+    const body = await resp.text();
+    const isRateLimit = resp.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(body);
+    const err = new Error(`Sheets GET failed: ${body}`);
+    err.isRateLimit = isRateLimit;
+    throw err;
+  }
   return resp.json();
+}
+
+async function sheetsGet(serviceAccount, sheetId, range) {
+  const key = _cacheKey(sheetId, range);
+  const hit = _readCache.get(key);
+  if (hit && Date.now() < hit.exp) return hit.data;
+
+  // Retry up to 3 times with exponential backoff on rate-limit errors
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = await _sheetsGetRaw(serviceAccount, sheetId, range);
+      _readCache.set(key, { data, exp: Date.now() + READ_CACHE_TTL });
+      return data;
+    } catch (err) {
+      lastErr = err;
+      if (!err.isRateLimit || attempt === 2) break;
+      await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt))); // 1.5s, 3s
+    }
+  }
+  throw lastErr;
 }
 
 async function sheetsAppend(serviceAccount, sheetId, range, values) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -123,7 +181,7 @@ async function sheetsAppend(serviceAccount, sheetId, range, values) {
 async function sheetsUpdate(serviceAccount, sheetId, range, values) {
   const token = await getAccessToken(serviceAccount);
   const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -139,7 +197,7 @@ async function sheetsBatchGet(serviceAccount, sheetId, ranges) {
   const token = await getAccessToken(serviceAccount);
   const qs = ranges.map(r => `ranges=${encodeURIComponent(r)}`).join('&');
   const url = `${SHEETS_BASE}/${sheetId}/values:batchGet?${qs}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!resp.ok) throw new Error(`Sheets batchGet failed: ${await resp.text()}`);
@@ -204,4 +262,26 @@ async function sheetsEnsureHeaders(serviceAccount, sheetId, tabName, headers) {
     if (data.values && data.values[0] && data.values[0][0]) return; // already has header
   } catch (_) { /* tab may be empty */ }
   await sheetsUpdate(serviceAccount, sheetId, `${tabName}!A1`, [headers]);
+}
+
+// Returns spreadsheet metadata including all sheet tab names and their internal IDs.
+async function sheetsGetMetadata(sa, sheetId) {
+  const token = await getAccessToken(sa);
+  const url = `${SHEETS_BASE}/${sheetId}?fields=sheets.properties`;
+  const resp = await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!resp.ok) throw new Error(`Metadata fetch failed: ${await resp.text()}`);
+  return resp.json();
+}
+
+// Permanently deletes a tab by its internal numeric sheet ID (from sheetsGetMetadata).
+async function sheetsDeleteTab(sa, sheetId, tabSheetId) {
+  const token = await getAccessToken(sa);
+  const url = `${SHEETS_BASE}/${sheetId}:batchUpdate`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ deleteSheet: { sheetId: tabSheetId } }] }),
+  });
+  if (!resp.ok) throw new Error(`Delete tab failed: ${await resp.text()}`);
+  return resp.json();
 }

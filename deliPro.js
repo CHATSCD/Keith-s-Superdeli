@@ -10,6 +10,7 @@ const DELI_TABS = {
   recipes:   { label: 'Recipes',    tab: 'Recipes',    headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',  headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   analytics: { label: 'Analytics',  virtual: true },
+  training:  { label: 'Training',   virtual: true },
 };
 
 const INVENTORY_CATEGORIES = ['Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beverages','Supplies','Other'];
@@ -20,6 +21,7 @@ const RECIPE_CATS           = ['Sandwiches','Salads','Hot Foods','Sides','Soups'
 // Module-level state
 const deliState = {
   storeNum: null, storeName: null, sheetId: null, sa: null,
+  countSheetId: null,
   activeTab: 'inventory',
   data: {},
 };
@@ -28,13 +30,14 @@ const deliState = {
 // ENTRY POINT
 // ════════════════════════════════════════
 
-function deliProInit(container, storeNum, storeName, sheetId, serviceAccount) {
-  deliState.storeNum  = storeNum;
-  deliState.storeName = storeName;
-  deliState.sheetId   = sheetId;
-  deliState.sa        = serviceAccount;
-  deliState.data      = {};
-  deliState.activeTab = 'inventory';
+function deliProInit(container, storeNum, storeName, sheetId, serviceAccount, countSheetId) {
+  deliState.storeNum     = storeNum;
+  deliState.storeName    = storeName;
+  deliState.sheetId      = sheetId;
+  deliState.sa           = serviceAccount;
+  deliState.countSheetId = countSheetId || null;
+  deliState.data         = {};
+  deliState.activeTab    = 'inventory';
 
   container.innerHTML = buildDeliShell();
   attachDeliNav(container);
@@ -77,6 +80,11 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  if (tabId === 'training') {
+    renderTraining(content);
+    return;
+  }
+
   const tabCfg = DELI_TABS[tabId];
   content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading ${tabCfg.label}…</p></div>`;
 
@@ -89,11 +97,50 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  const saNote = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL)
+    ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
+    : '';
+
+  // Inventory: load from count sheet when one is linked for this store
+  if (tabId === 'inventory' && deliState.countSheetId) {
+    let raw;
+    try {
+      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:Z1000');
+      raw = result.values || [];
+    } catch (err) {
+      content.innerHTML = `
+        <div class="banner banner-danger">
+          <strong>Could not load count sheet.</strong>
+          <br>Error: <code>${err.message}</code>${saNote}
+        </div>`;
+      return;
+    }
+
+    renderCountSheet(content, raw);
+    return;
+  }
+
   try {
     const result = await sheetsGet(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1:Z1000`);
     deliState.data[tabId] = result.values || [];
-  } catch (_) {
-    deliState.data[tabId] = [];
+  } catch (err) {
+    // Tab doesn't exist yet — create it with headers then show empty state
+    const tabMissing = /unable to parse range|not found/i.test(err.message);
+    if (tabMissing && tabCfg.headers) {
+      try {
+        await sheetsAddTab(deliState.sa, deliState.sheetId, tabCfg.tab);
+        await sheetsUpdate(deliState.sa, deliState.sheetId, `${tabCfg.tab}!A1`, [tabCfg.headers]);
+      } catch (_) { /* ignore if tab already exists race */ }
+      deliState.data[tabId] = [tabCfg.headers];
+    } else {
+      content.innerHTML = `
+        <div class="banner banner-danger">
+          <strong>Could not load data from Google Sheets.</strong>
+          <br>Error: <code>${err.message}</code>
+          ${saNote}
+        </div>`;
+      return;
+    }
   }
 
   switch (tabId) {
@@ -114,6 +161,162 @@ function reloadTab() {
 // ════════════════════════════════════════
 // INVENTORY
 // ════════════════════════════════════════
+
+// ════════════════════════════════════════
+// COUNT SHEET (native display, no conversion)
+// ════════════════════════════════════════
+
+function renderCountSheet(content, raw) {
+  if (!raw || raw.length === 0) {
+    content.innerHTML = '<div class="empty-state"><p>Count sheet is empty.</p></div>';
+    return;
+  }
+
+  const headerRow = raw[0] || [];
+
+  // Find the On Hand / count column — scan headers first, then default to col E (index 4)
+  let countColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (/on.?hand|count|qty|quantity|amount/i.test(headerRow[i] || '')) { countColIdx = i; break; }
+  }
+  if (countColIdx === -1) countColIdx = 4;
+
+  // Find a STATUS column (for color coding)
+  let statusColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (/status/i.test(headerRow[i] || '')) { statusColIdx = i; break; }
+  }
+  // If no STATUS header, check last column of the widest data row for OUT/LOW/OK pattern
+  if (statusColIdx === -1) {
+    const sample = raw.slice(1).find(r => r.length >= 8);
+    if (sample) {
+      const last = (sample[sample.length - 1] || '').trim();
+      if (/^(out|low|ok|no.?par)$/i.test(last)) statusColIdx = sample.length - 1;
+    }
+  }
+
+  // Build display headers — label blank count column as "On Hand"
+  const numCols = Math.max(...raw.map(r => r.length), 1);
+  const headers = Array.from({ length: numCols }, (_, i) => {
+    if (i === countColIdx) return 'On Hand';
+    return (headerRow[i] || '').trim() || null; // null = hide column
+  });
+
+  // Count visible columns (non-null headers or count col)
+  const visibleCols = headers.filter((h, i) => h !== null || i === countColIdx);
+
+  const statusColor = v => {
+    const s = (v || '').toUpperCase();
+    if (s === 'OUT')    return 'color:var(--red);font-weight:700';
+    if (s === 'LOW')    return 'color:var(--amber);font-weight:700';
+    if (s === 'OK')     return 'color:var(--green);font-weight:600';
+    if (/NO.?PAR/i.test(s)) return 'color:var(--muted)';
+    return '';
+  };
+
+  const rowsHTML = raw.slice(1).map((r, rawIdx) => {
+    const sheetRow = rawIdx + 2;
+    if (r.every(c => !(c || '').trim())) return '';
+
+    const colA    = (r[0] || '').trim();
+    const colB    = (r[1] || '').trim();
+    const countV  = (r[countColIdx] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').trim()).length;
+
+    // Section header row: product col empty, name col has text, no count, few cells populated
+    if (!colA && colB && !countV && nonEmpty <= 3) {
+      return `<tr>
+        <td colspan="${numCols}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
+      </tr>`;
+    }
+
+    const cells = headers.map((h, i) => {
+      if (h === null) return ''; // skip hidden columns
+      const val = (r[i] || '').trim();
+
+      if (i === countColIdx) {
+        return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+      }
+      if (i === statusColIdx && val) {
+        return `<td style="${statusColor(val)}">${val}</td>`;
+      }
+      return `<td>${val}</td>`;
+    }).join('');
+
+    return `<tr>${cells}</tr>`;
+  }).join('');
+
+  const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('');
+
+  // Summary: count OUT items
+  const outCount = raw.slice(1).filter(r => {
+    const s = statusColIdx >= 0 ? (r[statusColIdx] || '') : '';
+    return /^out$/i.test(s.trim());
+  }).length;
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Inventory Count Sheet</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
+          <button class="btn btn-primary btn-sm" id="save-all-counts-btn">Save All Counts</button>
+        </span>
+      </div>
+      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>${colHeaders}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  content.querySelectorAll('.cs-count-input').forEach(input => {
+    const saveCount = async () => {
+      const sheetRow  = input.dataset.csRow;
+      const colIdx    = parseInt(input.dataset.csCol, 10);
+      if (!sheetRow || isNaN(colIdx)) return;
+      const colLetter = String.fromCharCode(65 + colIdx);
+      input.style.borderColor = 'var(--ks-blue)';
+      try {
+        await sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[input.value]]);
+        input.style.borderColor = 'var(--green)';
+        setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
+      } catch (_) {
+        input.style.borderColor = 'var(--red)';
+      }
+    };
+    input.addEventListener('blur', saveCount);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  });
+
+  const saveAllBtn   = content.querySelector('#save-all-counts-btn');
+  const saveAllStatus = content.querySelector('#save-all-counts-status');
+  saveAllBtn.addEventListener('click', async () => {
+    const inputs = [...content.querySelectorAll('.cs-count-input')];
+    saveAllBtn.disabled = true;
+    saveAllBtn.textContent = 'Saving…';
+    saveAllStatus.style.display = 'block';
+    saveAllStatus.innerHTML = '<span style="color:var(--muted)">Writing counts…</span>';
+    try {
+      await Promise.all(inputs.map(inp => {
+        const sheetRow  = inp.dataset.csRow;
+        const colIdx    = parseInt(inp.dataset.csCol, 10);
+        if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
+        const colLetter = String.fromCharCode(65 + colIdx);
+        return sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[inp.value]]);
+      }));
+      saveAllStatus.innerHTML = `<span style="color:var(--green)">All ${inputs.length} counts saved.</span>`;
+    } catch (err) {
+      saveAllStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      saveAllBtn.disabled = false;
+      saveAllBtn.textContent = 'Save All Counts';
+    }
+  });
+}
 
 function renderInventory(content, rows) {
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
@@ -227,6 +430,7 @@ function renderInventory(content, rows) {
       statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally { btn.disabled=false; btn.textContent='Save Item'; }
   });
+
 }
 
 // ════════════════════════════════════════
@@ -260,7 +464,7 @@ function renderFoodCost(content, rows) {
     <div class="stats-row">
       <div class="stat-pill">
         <div class="stat-pill-label">4-Week Avg</div>
-        <div class="stat-pill-value ${avgFC!=='--'?fcColor(avgFC):''}">${avgFC}%</div>
+        <div class="stat-pill-value ${avgFC!=='--'?fcColor(avgFC):''}}">${avgFC}%</div>
       </div>
       <div class="stat-pill">
         <div class="stat-pill-label">Entries</div>
@@ -443,7 +647,7 @@ function renderOrders(content, rows) {
 
   content.innerHTML = `
     <div class="stats-row">
-      <div class="stat-pill"><div class="stat-pill-label">Open Orders</div><div class="stat-pill-value ${open.length?'amber':''}">${open.length}</div></div>
+      <div class="stat-pill"><div class="stat-pill-label">Open Orders</div><div class="stat-pill-value ${open.length?'amber':''}}">${open.length}</div></div>
       <div class="stat-pill"><div class="stat-pill-label">Total Orders</div><div class="stat-pill-value">${dataRows.length}</div></div>
     </div>
 
@@ -786,8 +990,8 @@ function renderAnalytics(content) {
   content.innerHTML = `
     <div class="stats-row">
       <div class="stat-pill"><div class="stat-pill-label">4-Wk Avg Food Cost</div><div class="stat-pill-value ${fcColor}">${avgFC}%</div></div>
-      <div class="stat-pill"><div class="stat-pill-label">Low Stock Items</div><div class="stat-pill-value ${lowStock?'red':''}">${lowStock}</div></div>
-      <div class="stat-pill"><div class="stat-pill-label">Pending Orders</div><div class="stat-pill-value ${pendingOrds?'amber':''}">${pendingOrds}</div></div>
+      <div class="stat-pill"><div class="stat-pill-label">Low Stock Items</div><div class="stat-pill-value ${lowStock?'red':''}}">${lowStock}</div></div>
+      <div class="stat-pill"><div class="stat-pill-label">Pending Orders</div><div class="stat-pill-value ${pendingOrds?'amber':''}}">${pendingOrds}</div></div>
       <div class="stat-pill"><div class="stat-pill-label">Invoices Logged</div><div class="stat-pill-value">${invs.length}</div></div>
     </div>
 
@@ -804,5 +1008,66 @@ function renderAnalytics(content) {
       <div class="banner-icon">ℹ</div>
       <div>Analytics reflects data loaded this session. Navigate each sub-tab to refresh.</div>
     </div>`}
+  `;
+}
+
+// ════════════════════════════════════════
+// TRAINING
+// ════════════════════════════════════════
+
+function renderTraining(content) {
+  const docs = [
+    {
+      icon: '📓',
+      title: 'Student Workbook',
+      desc: 'Spaceman 6235-C Cleaning — full step-by-step workbook for trainees',
+      url: 'https://drive.google.com/file/d/1mHmjSfumSFPrA-aO9RwP1zA5vfe__bWE/view',
+    },
+    {
+      icon: '📝',
+      title: 'Student Test',
+      desc: 'Spaceman 6235-C Cleaning — assessment to verify trainee competency',
+      url: 'https://drive.google.com/file/d/1Ea_BetNR6Fiu-cMWDvBl-eK2GAUHeRzf/view',
+    },
+    {
+      icon: '📋',
+      title: 'Instructor Manual',
+      desc: 'Spaceman 6235-C Cleaning — full instructor guide with teaching notes',
+      url: 'https://drive.google.com/file/d/1I6sj0wN1FqvrF9o9r-zEuIVkRY2bKr6K/view',
+    },
+    {
+      icon: '🗺️',
+      title: 'Quick Reference Guide',
+      desc: 'Spaceman 6235-C Cleaning — at-a-glance summary for trained staff',
+      url: 'https://drive.google.com/file/d/1v1ImjNsbkcrNWUnhsorMdIxsyFKKQBK5/view',
+    },
+  ];
+
+  const cards = docs.map(d => `
+    <a href="${d.url}" target="_blank" rel="noopener" style="
+      display:block;text-decoration:none;color:inherit;
+      background:#fff;border-radius:var(--radius);padding:18px 20px;
+      box-shadow:var(--shadow);border-left:4px solid var(--ks-blue);
+      margin-bottom:12px;
+    ">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px;flex-shrink:0">${d.icon}</div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--ks-blue)">${d.title}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px">${d.desc}</div>
+        </div>
+        <div style="margin-left:auto;color:var(--ks-blue);font-size:20px;flex-shrink:0">↗</div>
+      </div>
+    </a>
+  `).join('');
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title">🍦 Spaceman 6235-C — Training Materials</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Tap any document to open it. Documents open in Google Drive.
+      </p>
+      ${cards}
+    </div>
   `;
 }
