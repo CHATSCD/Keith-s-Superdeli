@@ -260,9 +260,10 @@ function renderCountSheet(content, raw) {
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center">
           ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
-          <span style="font-size:12px;font-weight:400;color:var(--muted)">Type count → Enter to save</span>
+          <button class="btn btn-primary btn-sm" id="save-all-counts-btn">Save All Counts</button>
         </span>
       </div>
+      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>${colHeaders}</tr></thead>
@@ -289,6 +290,31 @@ function renderCountSheet(content, raw) {
     };
     input.addEventListener('blur', saveCount);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  });
+
+  const saveAllBtn   = content.querySelector('#save-all-counts-btn');
+  const saveAllStatus = content.querySelector('#save-all-counts-status');
+  saveAllBtn.addEventListener('click', async () => {
+    const inputs = [...content.querySelectorAll('.cs-count-input')];
+    saveAllBtn.disabled = true;
+    saveAllBtn.textContent = 'Saving…';
+    saveAllStatus.style.display = 'block';
+    saveAllStatus.innerHTML = '<span style="color:var(--muted)">Writing counts…</span>';
+    try {
+      await Promise.all(inputs.map(inp => {
+        const sheetRow  = inp.dataset.csRow;
+        const colIdx    = parseInt(inp.dataset.csCol, 10);
+        if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
+        const colLetter = String.fromCharCode(65 + colIdx);
+        return sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[inp.value]]);
+      }));
+      saveAllStatus.innerHTML = `<span style="color:var(--green)">All ${inputs.length} counts saved.</span>`;
+    } catch (err) {
+      saveAllStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      saveAllBtn.disabled = false;
+      saveAllBtn.textContent = 'Save All Counts';
+    }
   });
 }
 
