@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keith's Superstores — Store Directory</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --blue:   #1565C0;
+    --blue2:  #0D47A1;
+    --red:    #CC1F2B;
+    --gold:   #FFD700;
+    --bg:     #F2F5FA;
+    --card:   #ffffff;
+    --text:   #1a1a2e;
+    --muted:  #6b7280;
+    --border: #e2e8f0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    background: linear-gradient(135deg, var(--blue2) 0%, var(--blue) 55%, #1976D2 100%);
+    color: white;
+    padding: 28px 24px 24px;
+    text-align: center;
+    position: relative;
+  }
+  .page-header::after {
+    content: '';
+    position: absolute;
+    bottom: -12px; left: 0; right: 0;
+    height: 24px;
+    background: var(--red);
+    clip-path: polygon(0 0, 100% 0, 100% 40%, 50% 100%, 0 40%);
+  }
+
+  .real-logo {
+    display: block;
+    margin: 0 auto 10px;
+    height: 80px;
+    width: auto;
+    filter: drop-shadow(0 3px 10px rgba(0,0,0,.4));
+  }
+
+  .header-tagline {
+    font-size: 13px;
+    color: rgba(255,255,255,.8);
+    margin-top: 4px;
+    letter-spacing: .04em;
+  }
+  .coordinator-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-top: 6px;
+  }
+
+  /* ── Dashboard link ── */
+  .dashboard-bar {
+    background: var(--red);
+    padding: 18px 24px 14px;
+    text-align: center;
+    margin-top: 12px;
+  }
+  .dashboard-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    color: var(--red);
+    font-weight: 700;
+    font-size: 15px;
+    padding: 10px 28px;
+    border-radius: 30px;
+    text-decoration: none;
+    box-shadow: 0 3px 12px rgba(0,0,0,.2);
+    transition: transform .15s;
+  }
+  .dashboard-btn:hover { transform: scale(1.03); }
+  .dashboard-label {
+    font-size: 11px;
+    color: rgba(255,255,255,.8);
+    margin-top: 6px;
+    letter-spacing: .06em;
+  }
+
+  /* ── State section headers ── */
+  .state-header {
+    max-width: 1200px;
+    margin: 36px auto 12px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .state-header h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--blue2);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .state-line {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(to right, var(--blue2), transparent);
+    border-radius: 1px;
+  }
+  .state-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: .08em;
+    white-space: nowrap;
+  }
+
+  /* ── Store grid ── */
+  .store-grid {
+    max-width: 1200px;
+    margin: 0 auto 8px;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+
+  /* ── Store card ── */
+  .store-card {
+    background: var(--card);
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(21,101,192,.07);
+    transition: box-shadow .15s, transform .15s;
+  }
+  .store-card:hover {
+    box-shadow: 0 6px 20px rgba(21,101,192,.14);
+    transform: translateY(-2px);
+  }
+
+  .card-top {
+    background: linear-gradient(135deg, var(--blue2), var(--blue));
+    padding: 12px 16px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .store-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: .03em;
+    line-height: 1;
+  }
+  .store-num span {
+    font-size: 13px;
+    font-weight: 600;
+    opacity: .7;
+    display: block;
+    letter-spacing: .08em;
+  }
+  .store-city {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    text-align: right;
+    letter-spacing: .04em;
+  }
+  .store-state {
+    font-size: 11px;
+    color: rgba(255,255,255,.65);
+    text-align: right;
+    letter-spacing: .08em;
+    margin-top: 1px;
+  }
+
+  .card-body {
+    padding: 12px 16px;
+  }
+  .info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 7px;
+    line-height: 1.4;
+  }
+  .info-row:last-of-type { margin-bottom: 0; }
+  .info-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .info-label {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    display: block;
+  }
+
+  .card-footer {
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .deli-link {
+    flex: 1;
+    display: block;
+    text-align: center;
+    background: var(--blue);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    letter-spacing: .04em;
+    transition: background .15s;
+  }
+  .deli-link:hover { background: var(--blue2); }
+
+  .maps-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0F9D58;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    gap: 4px;
+    white-space: nowrap;
+    transition: background .15s;
+  }
+  .maps-link:hover { background: #0b7a44; }
+
+  /* ── Footer ── */
+  .page-footer {
+    max-width: 1200px;
+    margin: 36px auto 48px;
+    padding: 0 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .page-footer a { color: var(--blue); }
+
+  @media print {
+    .store-card:hover { transform: none; box-shadow: none; }
+    body { background: white; }
+    .store-grid { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="page-header">
+  <img class="real-logo" src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png" alt="Keith's Superstores">
+  <div class="coordinator-title">Food &amp; Beverage Coordinator</div>
+  <div class="header-tagline">Complete Store Directory &amp; Deli Pro Access</div>
+</div>
+
+<!-- Dashboard Button -->
+<div class="dashboard-bar">
+  <a href="https://keiths-superdeli.vercel.app/?view=coordinator" class="dashboard-btn" target="_blank">
+    🗂 Open Coordinator Dashboard
+  </a>
+  <div class="dashboard-label">CHAIN-WIDE OVERVIEW · ALL STORES · INSPECTION REPORTS · BACKUPS</div>
+</div>
+
+<!-- ════ ALABAMA ════ -->
+<div class="state-header">
+  <h2>Alabama</h2>
+  <div class="state-line"></div>
+  <div class="state-count">1 Store</div>
+</div>
+<div class="store-grid">
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#60</div>
+      <div><div class="store-city">Wilmer</div><div class="store-state">Alabama</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>13515 Moffett Rd, Wilmer, AL 36587</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(251) 649-6544</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=60" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=13515+Moffett+Rd+Wilmer+AL+36587" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════ MISSISSIPPI ════ -->
+<div class="state-header">
+  <h2>Mississippi</h2>
+  <div class="state-line"></div>
+  <div class="state-count">37 Stores</div>
+</div>
+<div class="store-grid">
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#59</div>
+      <div><div class="store-city">Moselle</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>59 Moselle-Seminary Rd, Moselle, MS 39459</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 582-8330</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 4:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=59" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=59+Moselle-Seminary+Rd+Moselle+MS+39459" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#80</div>
+      <div><div class="store-city">Lucedale</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>6239 Hwy 98, Lucedale, MS 39452</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 947-7520</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=80" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=6239+Hwy+98+Lucedale+MS+39452" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#81</div>
+      <div><div class="store-city">Lucedale</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>7292 Hwy 63 S, Lucedale, MS 39452</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 947-8120</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=81" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=7292+Hwy+63+S+Lucedale+MS+39452" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#82</div>
+      <div><div class="store-city">Hurley</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>21000 Hwy 613, Moss Point, MS 39562</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 588-2134</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 4:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=82" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=21000+Hwy+613+Moss+Point+MS+39562" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#85</div>
+      <div><div class="store-city">Moss Point</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>6820 Hwy 613, Moss Point, MS 39563</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 474-2556</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Thu 3 AM–11 PM · Fri 3 AM–12 AM · Sat–Sun 5 AM–11 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=85" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=6820+Hwy+613+Moss+Point+MS+39563" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#86</div>
+      <div><div class="store-city">Moss Point</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>6718 Hwy 63, Moss Point, MS 39563</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 474-0004</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 4:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=86" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=6718+Hwy+63+Moss+Point+MS+39563" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#88</div>
+      <div><div class="store-city">Vancleave</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>10909 Hwy 57, Vancleave, MS 39565</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 826-9115</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 4:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=88" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=10909+Hwy+57+Vancleave+MS+39565" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#89</div>
+      <div><div class="store-city">Ocean Springs</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>7501 Washington Ave, Ocean Springs, MS 39564</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 872-1955</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Open 24/7</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=89" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=7501+Washington+Ave+Ocean+Springs+MS+39564" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#90</div>
+      <div><div class="store-city">—</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 392-9084</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Open 24/7</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=90" target="_blank">🏪 Open Deli Pro</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#91</div>
+      <div><div class="store-city">Wiggins</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>1220 W. Central Ave, Wiggins, MS 39577</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 928-9403</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=91" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=1220+W+Central+Ave+Wiggins+MS+39577" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#100</div>
+      <div><div class="store-city">Ellisville</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>304 Hill St, Ellisville, MS 39437</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 477-9990</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=100" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=304+Hill+St+Ellisville+MS+39437" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#105</div>
+      <div><div class="store-city">Ellisville</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>5213 Hwy 11 N, Ellisville, MS 39437</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 425-3085</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=105" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=5213+Hwy+11+N+Ellisville+MS+39437" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#107</div>
+      <div><div class="store-city">Saucier</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>26181 Hwy 49 S, Saucier, MS 39574</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 832-0298</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=107" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=26181+Hwy+49+S+Saucier+MS+39574" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#108</div>
+      <div><div class="store-city">Long Beach</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>19000 28th St, Long Beach, MS 39560</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 575-6822</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=108" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=19000+28th+St+Long+Beach+MS+39560" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#109</div>
+      <div><div class="store-city">Pass Christian</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>102 E Beach Blvd, Pass Christian, MS 39571</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 452-5651</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=109" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=102+E+Beach+Blvd+Pass+Christian+MS+39571" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#112</div>
+      <div><div class="store-city">Gautier</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>819 Hwy 90, Gautier, MS 39553</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 497-9687</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Fri 3 AM–11 PM · Sat 4 AM–12 AM · Sun 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=112" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=819+Hwy+90+Gautier+MS+39553" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#117</div>
+      <div><div class="store-city">Bay Springs</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>2675 Hwy 15, Bay Springs, MS 39422</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 764-4580</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=117" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=2675+Hwy+15+Bay+Springs+MS+39422" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#120</div>
+      <div><div class="store-city">Purvis</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>5812 Hwy 11, Purvis, MS 39475</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 794-2249</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 10:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=120" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=5812+Hwy+11+Purvis+MS+39475" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#122</div>
+      <div><div class="store-city">Purvis</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>5791 Hwy 11, Purvis, MS 39475</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 794-0422</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 10:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=122" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=5791+Hwy+11+Purvis+MS+39475" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#123</div>
+      <div><div class="store-city">Purvis</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>361 Hwy 589, Purvis, MS 39475</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 744-0660</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=123" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=361+Hwy+589+Purvis+MS+39475" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#125</div>
+      <div><div class="store-city">Seminary</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>2078 US Hwy 49, Seminary, MS 39479</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 722-4323</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 10:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=125" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=2078+US+Hwy+49+Seminary+MS+39479" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card" style="border-color:#FFD700;box-shadow:0 0 0 2px #FFD700;">
+    <div class="card-top" style="background:linear-gradient(135deg,#7B1FA2,#9C27B0);">
+      <div class="store-num"><span>Store</span>#127</div>
+      <div><div class="store-city">Collins</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>3030 Hwy 49, Collins, MS 39428</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 909-9133</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=127" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=3030+Hwy+49+Collins+MS+39428" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#130</div>
+      <div><div class="store-city">Columbia</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>1475 Hwy 98 E, Columbia, MS 39429</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 736-6662</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=130" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=1475+Hwy+98+E+Columbia+MS+39429" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#135</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>5331 Old Hwy 11, Hattiesburg, MS 39402</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 271-8711</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=135" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=5331+Old+Hwy+11+Hattiesburg+MS+39402" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#137</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>5170 W. 4th St, Hattiesburg, MS 39401</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 296-6008</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol, Off-Road</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=137" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=5170+W+4th+St+Hattiesburg+MS+39401" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#140</div>
+      <div><div class="store-city">Mount Olive</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>1196 Rock Hill Rd, Mount Olive, MS 39119</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 797-4545</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Off-Road</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=140" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=1196+Rock+Hill+Rd+Mount+Olive+MS+39119" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#150</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>6750 Hwy 49, Hattiesburg, MS 39402</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 271-8400</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=150" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=6750+Hwy+49+Hattiesburg+MS+39402" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#151</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>7276 Hwy 49, Hattiesburg, MS 39402</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 296-6761</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=151" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=7276+Hwy+49+Hattiesburg+MS+39402" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#155</div>
+      <div><div class="store-city">Sumrall</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>8431 Hwy 98, Sumrall, MS 39482</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 296-4721</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–9 PM · Fri–Sat 5 AM–10 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=155" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=8431+Hwy+98+Sumrall+MS+39482" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#157</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>2462 US Hwy 49, Hattiesburg, MS 39401</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 336-1340</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 12:00 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=157" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=2462+US+Hwy+49+Hattiesburg+MS+39401" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#160</div>
+      <div><div class="store-city">Wiggins</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>114 Magnolia Dr, Wiggins, MS 39577</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 528-9002</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=160" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=114+Magnolia+Dr+Wiggins+MS+39577" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#161</div>
+      <div><div class="store-city">Wiggins</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>3333 Hwy 49, Wiggins, MS 39577</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 928-7826</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 10:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=161" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=3333+Hwy+49+Wiggins+MS+39577" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#173</div>
+      <div><div class="store-city">Hattiesburg</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>1858 Evelyn Gandy Pkwy, Hattiesburg, MS 39401</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 583-4485</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=173" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=1858+Evelyn+Gandy+Pkwy+Hattiesburg+MS+39401" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#175</div>
+      <div><div class="store-city">Petal</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>101 Carterville Rd, Petal, MS 39465</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 584-8665</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Standard</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=175" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=101+Carterville+Rd+Petal+MS+39465" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#182</div>
+      <div><div class="store-city">Waveland</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>10513 Hwy 603, Waveland, MS 39576</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 466-4494</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=182" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=10513+Hwy+603+Waveland+MS+39576" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#183</div>
+      <div><div class="store-city">Bay St. Louis</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>701 Hwy 90, Bay St. Louis, MS 39520</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(251) 649-6544</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=183" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=701+Hwy+90+Bay+St+Louis+MS+39520" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#184</div>
+      <div><div class="store-city">Bay St. Louis</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>4955 Hwy 90, Bay St. Louis, MS 39520</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(228) 466-4336</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=184" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=4955+Hwy+90+Bay+St+Louis+MS+39520" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#185</div>
+      <div><div class="store-city">Lumberton</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>918 E. Main Ave, Lumberton, MS 39455</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 796-2780</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Mon–Sun 5:00 AM – 11:00 PM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel, Non-Ethanol</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=185" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=918+E+Main+Ave+Lumberton+MS+39455" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#192</div>
+      <div><div class="store-city">Picayune</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>1405 Hwy 43 N, Picayune, MS 39466</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 798-9554</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=192" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=1405+Hwy+43+N+Picayune+MS+39466" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#194</div>
+      <div><div class="store-city">Carriere</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>498 W. Union Rd, Carriere, MS 39426</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 889-0394</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Open 24/7</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=194" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=498+W+Union+Rd+Carriere+MS+39426" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+  <div class="store-card">
+    <div class="card-top">
+      <div class="store-num"><span>Store</span>#196</div>
+      <div><div class="store-city">Poplarville</div><div class="store-state">Mississippi</div></div>
+    </div>
+    <div class="card-body">
+      <div class="info-row"><span class="info-icon">📍</span><div><span class="info-label">Address</span>4670 Hwy 53, Poplarville, MS 39470</div></div>
+      <div class="info-row"><span class="info-icon">📞</span><div><span class="info-label">Phone</span>(601) 403-8290</div></div>
+      <div class="info-row"><span class="info-icon">🕐</span><div><span class="info-label">Hours</span>Sun–Thu 5 AM–11 PM · Fri–Sat 5 AM–12 AM</div></div>
+      <div class="info-row"><span class="info-icon">⛽</span><div><span class="info-label">Fuel</span>Diesel</div></div>
+    </div>
+    <div class="card-footer">
+      <a class="deli-link" href="https://keiths-superdeli.vercel.app/?store=196" target="_blank">🏪 Open Deli Pro</a>
+      <a class="maps-link" href="https://maps.google.com/?q=4670+Hwy+53+Poplarville+MS+39470" target="_blank">📍 Map</a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<div class="page-footer">
+  <p>
+    <a href="/" style="font-weight:600">&larr; Back to Deli Pro App</a>
+    &nbsp;&nbsp;·&nbsp;&nbsp;
+    <a href="https://keiths-superdeli.vercel.app/?view=coordinator">Coordinator Dashboard</a>
+    &nbsp;&nbsp;·&nbsp;&nbsp;
+    <a href="https://www.keithssuperstores.com/store-locations" target="_blank">keithssuperstores.com</a>
+  </p>
+  <p style="margin-top:6px">Licensed to Keith's Superstores &nbsp;·&nbsp; &copy; 2026 S.C.D. All Rights Reserved</p>
+</div>
+
+</body>
+</html>

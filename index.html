@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1565C0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Keith's Superstores — Deli Pro</title>
+  <link rel="icon" type="image/png" href="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png">
+  <link rel="apple-touch-icon" href="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     APP HEADER
+══════════════════════════════════════════ -->
+<header id="app-header">
+  <div class="header-inner">
+    <div class="app-brand">
+      <img src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png"
+           alt="Keith's Superstores"
+           class="header-real-logo">
+      <div class="header-dept-label">Food &amp; Beverage Coordinator</div>
+    </div>
+    <div id="store-badge">Loading…</div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════
+     TOP TAB NAV  (tablet + desktop)
+══════════════════════════════════════════ -->
+<nav id="tab-nav" style="display:none" aria-label="Module navigation">
+  <div class="tab-nav-inner">
+    <button class="tab-btn" data-module="deli">
+      <span class="tab-icon" aria-hidden="true">🏪</span> Deli Pro
+    </button>
+    <button class="tab-btn" data-module="inspection">
+      <span class="tab-icon" aria-hidden="true">✅</span> Inspection
+    </button>
+    <button class="tab-btn" data-module="logs">
+      <span class="tab-icon" aria-hidden="true">🛠</span> Maintenance Logs
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════ -->
+<main id="app-main">
+
+  <!-- Store picker (shown when no store param) -->
+  <div id="no-store-msg" style="display:none"></div>
+
+  <!-- Unknown store -->
+  <div id="unknown-store-msg" class="empty-state" style="display:none">
+    <div style="font-size:56px;margin-bottom:16px">❓</div>
+    <h2>Unknown Store</h2>
+    <p>Store #<strong id="unknown-num"></strong> is not in the store list.</p>
+  </div>
+
+  <!-- Module containers (lazy-initialized) -->
+  <div id="module-deli"        class="module"></div>
+  <div id="module-inspection"  class="module"></div>
+  <div id="module-logs"        class="module"></div>
+  <div id="module-coordinator" class="module"></div>
+
+</main>
+
+<!-- ═══════════════════════════════════════
+     BOTTOM NAV  (mobile only — shown by JS)
+══════════════════════════════════════════ -->
+<nav id="bottom-nav" aria-label="Module navigation" style="display:none">
+  <div class="bottom-nav-inner">
+
+    <button class="bottom-tab-btn" data-module="deli" aria-label="Deli Pro">
+      <!-- Store / building icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Deli</span>
+    </button>
+
+    <button class="bottom-tab-btn" data-module="inspection" aria-label="Inspection">
+      <!-- Clipboard check icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+      <span>Inspect</span>
+    </button>
+
+    <button class="bottom-tab-btn" data-module="logs" aria-label="Maintenance Logs">
+      <!-- Wrench icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+      <span>Maintenance</span>
+    </button>
+
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════ -->
+<script src="serviceAccount.js"></script>
+<script src="stores.js"></script>
+<script src="sheetsApi.js"></script>
+<script src="deliPro.js"></script>
+<script src="inspection.js"></script>
+<script src="cleaningLogs.js"></script>
+<script src="backup.js"></script>
+<script src="coordinator.js"></script>
+
+<script>
+// ════════════════════════════════════════
+// URL Router
+// ════════════════════════════════════════
+(function () {
+  const params    = new URLSearchParams(window.location.search);
+  const storeNum  = params.get('store');
+  const tabParam  = params.get('tab');
+  const viewParam = params.get('view');
+
+  const tabNav    = document.getElementById('tab-nav');
+  const bottomNav = document.getElementById('bottom-nav');
+  const badge     = document.getElementById('store-badge');
+
+  // Guard: serviceAccount.js must be present and populated.
+  // build.js generates it from Vercel env vars (SA_CLIENT_EMAIL, SA_PRIVATE_KEY).
+  const hasCreds = (typeof SERVICE_ACCOUNT_EMAIL !== 'undefined' && SERVICE_ACCOUNT_EMAIL) &&
+                   (typeof PRIVATE_KEY !== 'undefined' && PRIVATE_KEY);
+
+  if (!hasCreds) {
+    badge.textContent = 'Setup Required';
+    document.getElementById('app-main').innerHTML = `
+      <div class="empty-state">
+        <div style="font-size:48px;margin-bottom:16px">🔑</div>
+        <h2>Service Account Not Configured</h2>
+        <p>The app needs Google Service Account credentials to connect to Google Sheets.</p>
+        <p style="margin-top:14px">Add these environment variables in your <strong>Vercel project settings</strong> and redeploy:</p>
+        <div style="text-align:left;max-width:480px;margin:16px auto;background:#fff;border-radius:10px;padding:16px;font-size:13px;line-height:2">
+          <div><code>SA_CLIENT_EMAIL</code> — service account email</div>
+          <div><code>SA_PRIVATE_KEY</code> — private key from the JSON key file</div>
+          <div><code>SA_FOLDER_ID</code> — Google Drive folder ID (optional)</div>
+        </div>
+        <p style="font-size:13px;color:var(--muted)">See the README for full setup instructions.</p>
+      </div>`;
+    return;
+  }
+
+  // Build service-account credential object.
+  const SA = {
+    client_email: SERVICE_ACCOUNT_EMAIL,
+    private_key:  PRIVATE_KEY,
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive',
+    ],
+  };
+
+  // ── Coordinator view ────────────────────
+  if (viewParam === 'coordinator') {
+    badge.textContent = '';
+    document.title = "Keith's Superstores — Coordinator";
+    showModule('coordinator');
+    coordinatorInit(document.getElementById('module-coordinator'), SA);
+    return;
+  }
+
+  // ── No store param — show store picker ──
+  if (!storeNum) {
+    badge.textContent = 'Select a Store';
+
+    // Build sorted options from STORES map
+    const storeNums = Object.keys(STORE_NAMES).sort((a, b) => Number(a) - Number(b));
+    const options   = storeNums.map(n => {
+      const city = STORE_NAMES[n];
+      return `<option value="${n}">Store #${n}${city ? ' — ' + city : ''}</option>`;
+    }).join('');
+
+    const el = document.getElementById('no-store-msg');
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div style="
+        max-width:420px;margin:0 auto;padding:40px 16px 56px;text-align:center
+      ">
+        <img src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png" alt="Keith's Superstores" style="height:72px;width:auto;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto">
+        <div style="
+          font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;
+          color:var(--ks-blue2);letter-spacing:.04em;margin-bottom:4px
+        ">Keith's Superstores</div>
+        <div style="font-size:14px;color:var(--muted);margin-bottom:28px">
+          Select your store to open Deli Pro
+        </div>
+
+        <div style="text-align:left;margin-bottom:8px">
+          <label style="
+            font-size:11px;font-weight:700;color:var(--muted);
+            text-transform:uppercase;letter-spacing:.06em
+          ">Store</label>
+          <select id="store-picker" style="
+            width:100%;padding:12px 14px;border:1.5px solid var(--gray);
+            border-radius:10px;font-size:16px;font-family:inherit;
+            color:var(--text);background:var(--white);
+            -webkit-appearance:none;appearance:none;
+            background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23888%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');
+            background-repeat:no-repeat;background-position:right 14px center;
+            padding-right:40px;cursor:pointer;min-height:50px;
+            box-shadow:0 1px 3px rgba(0,0,0,.06)
+          ">
+            <option value="">— Choose a store —</option>
+            ${options}
+          </select>
+        </div>
+
+        <button id="store-go-btn" disabled style="
+          width:100%;padding:14px;background:var(--ks-blue);color:#fff;
+          border:none;border-radius:10px;font-size:16px;font-weight:700;
+          font-family:inherit;cursor:pointer;opacity:.4;
+          transition:opacity .15s;margin-top:4px;min-height:50px
+        ">Open Store</button>
+
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--gray)">
+          <a href="/?view=coordinator" style="
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:14px;font-weight:600;color:var(--ks-blue);text-decoration:none
+          ">
+            🗂 Coordinator View
+          </a>
+        </div>
+      </div>
+    `;
+
+    const picker = document.getElementById('store-picker');
+    const goBtn  = document.getElementById('store-go-btn');
+
+    picker.addEventListener('change', function () {
+      const val = this.value;
+      goBtn.disabled = !val;
+      goBtn.style.opacity = val ? '1' : '.4';
+    });
+
+    goBtn.addEventListener('click', function () {
+      const val = picker.value;
+      if (val) window.location.href = '/?store=' + val;
+    });
+
+    // Also navigate immediately on double-tap / desktop Enter
+    picker.addEventListener('dblclick', function () {
+      if (this.value) window.location.href = '/?store=' + this.value;
+    });
+
+    return;
+  }
+
+  // ── Store lookup ─────────────────────────
+  const storeName = getStoreName(storeNum);
+  if (!storeName) {
+    badge.textContent = `Store #${storeNum}`;
+    document.getElementById('unknown-store-msg').style.display = 'block';
+    document.getElementById('unknown-num').textContent = storeNum;
+    return;
+  }
+
+  const sheetId = SHEET_IDS[String(storeNum)] || '';
+
+  badge.textContent = `#${storeNum} — ${storeName}`;
+  document.title = `Keith's Superstores — #${storeNum} ${storeName}`;
+
+  // Show navigation
+  tabNav.style.display    = 'block';
+  bottomNav.style.display = 'block';
+
+  const ALIAS = { deli: 'deli', inspection: 'inspection', logs: 'logs' };
+  let activeTab = ALIAS[tabParam] || 'deli';
+
+  const initialized = {};
+
+  function initModuleIfNeeded(tab) {
+    if (initialized[tab]) return;
+    initialized[tab] = true;
+
+    if (tab === 'deli') {
+      const countSheetId = (typeof COUNT_SHEET_IDS !== 'undefined' && COUNT_SHEET_IDS[String(storeNum)]) || '';
+      deliProInit(
+        document.getElementById('module-deli'),
+        storeNum, storeName, sheetId, SA, countSheetId
+      );
+    } else if (tab === 'inspection') {
+      inspState = { answers: {}, photos: {}, ticket: null };
+      inspInit(
+        document.getElementById('module-inspection'),
+        storeNum, storeName, sheetId, SA
+      );
+    } else if (tab === 'logs') {
+      cleaningInit(
+        document.getElementById('module-logs'),
+        storeNum, storeName, sheetId, SA
+      );
+    }
+  }
+
+  function switchTab(tab) {
+    if (!ALIAS[tab]) return;
+    activeTab = tab;
+    showModule(tab);
+    initModuleIfNeeded(tab);
+
+    // Sync active class on ALL nav buttons (top + bottom)
+    document.querySelectorAll('[data-module]').forEach(b => {
+      b.classList.toggle('active', b.dataset.module === tab);
+    });
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    history.replaceState(null, '', url.toString());
+  }
+
+  // Single delegated handler for both top and bottom navs
+  function onNavClick(e) {
+    const btn = e.target.closest('[data-module]');
+    if (!btn) return;
+    switchTab(btn.dataset.module);
+  }
+
+  tabNav.addEventListener('click', onNavClick);
+  bottomNav.addEventListener('click', onNavClick);
+
+  // Boot
+  switchTab(activeTab);
+})();
+
+// Global helper used by coordinator init
+function showModule(mod) {
+  document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+  const el = document.getElementById('module-' + mod);
+  if (el) el.classList.add('active');
+}
+</script>
+
+<div style="text-align:center;font-size:11px;color:var(--muted);padding:16px 0 24px;border-top:1px solid var(--gray);margin-top:12px">
+  Licensed to Keith's Superstores &nbsp;·&nbsp; &copy; 2026 S.C.D. All Rights Reserved
+</div>
+
+</body>
+</html>
