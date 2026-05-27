@@ -147,17 +147,19 @@ async function sheetsGet(serviceAccount, sheetId, range) {
   const hit = _readCache.get(key);
   if (hit && Date.now() < hit.exp) return hit.data;
 
-  // Retry up to 3 times with exponential backoff on rate-limit errors
+  // Retry with backoff on rate-limit errors.
+  // Quota is 60 reads/min/user so short delays won't help — use 8s, 25s, 60s.
+  const RATE_DELAYS = [8000, 25000, 60000];
   let lastErr;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt <= RATE_DELAYS.length; attempt++) {
     try {
       const data = await _sheetsGetRaw(serviceAccount, sheetId, range);
       _readCache.set(key, { data, exp: Date.now() + READ_CACHE_TTL });
       return data;
     } catch (err) {
       lastErr = err;
-      if (!err.isRateLimit || attempt === 2) break;
-      await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt))); // 1.5s, 3s
+      if (!err.isRateLimit || attempt === RATE_DELAYS.length) break;
+      await new Promise(r => setTimeout(r, RATE_DELAYS[attempt]));
     }
   }
   throw lastErr;

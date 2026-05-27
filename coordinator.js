@@ -77,14 +77,16 @@ function buildCoordinatorShell() {
 
 let coordAllRows = [];
 
-// Fetch in batches of 5 to stay under the 60 req/min Sheets quota
-async function batchSettled(items, fn, batchSize = 5) {
+// Fetch in batches of 3 to stay under the 60 req/min Sheets quota.
+// 3 req per batch + 1.5s between batches ≈ 42 req/min — safely under limit.
+async function batchSettled(items, fn, batchSize = 3, onProgress) {
   const results = [];
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const settled = await Promise.allSettled(batch.map(fn));
     results.push(...settled);
-    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 800));
+    if (onProgress) onProgress(Math.min(i + batchSize, items.length), items.length);
+    if (i + batchSize < items.length) await new Promise(r => setTimeout(r, 1500));
   }
   return results;
 }
@@ -102,8 +104,13 @@ async function loadCoordinatorData(container, serviceAccount) {
     return;
   }
 
+  const tableWrap = document.getElementById('coord-table-wrap');
+  const total = storeEntries.length;
+
   const firstError = { msg: '' };
-  const rows = await batchSettled(storeEntries, async ([num, store]) => {
+  const rows = await batchSettled(
+    storeEntries,
+    async ([num, store]) => {
       try {
         const data = await sheetsGet(serviceAccount, store.sheetId, 'Inspections!A2:L1000');
         const values = data.values || [];
@@ -126,7 +133,16 @@ async function loadCoordinatorData(container, serviceAccount) {
         if (!firstError.msg) firstError.msg = err.message;
         return { storeNum: num, storeName: store.name, sheetId: store.sheetId, lastDate: null, score: null, nos: null, followup: null, status: 'Error' };
       }
-    });
+    },
+    3,
+    (done, tot) => {
+      if (tableWrap) tableWrap.innerHTML = `
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading store data… ${done} / ${tot}</p>
+        </div>`;
+    }
+  );
 
   coordAllRows = rows.map(r => r.value || r.reason);
 
