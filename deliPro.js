@@ -32,12 +32,12 @@ const deliState = {
 // ════════════════════════════════════════
 
 function deliProInit(container, storeNum, storeName, sheetId, serviceAccount, countSheetId) {
-  deliState.storeNum     = storeNum;
-  deliState.storeName    = storeName;
-  deliState.sheetId      = sheetId;
-  deliState.sa           = serviceAccount;
-  deliState.sheetId = countSheetId || null;
-  deliState.data         = {};
+  deliState.storeNum      = storeNum;
+  deliState.storeName     = storeName;
+  deliState.sheetId       = sheetId;
+  deliState.countSheetId  = countSheetId || null;
+  deliState.sa            = serviceAccount;
+  deliState.data          = {};
   deliState.activeTab    = 'inventory';
 
   container.innerHTML = buildDeliShell();
@@ -102,11 +102,11 @@ async function switchDeliTab(container, tabId) {
     ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
     : '';
 
-  // Inventory: load from count sheet when one is linked for this store
-  if (tabId === 'inventory' && deliState.sheetId) {
+  // Inventory: if this store has a dedicated count sheet, load from that directly
+  if (tabId === 'inventory' && deliState.countSheetId) {
     let raw;
     try {
-      const result = await sheetsGet(deliState.sa, deliState.sheetId, 'A1:Z1000');
+      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:Z1000');
       raw = result.values || [];
     } catch (err) {
       content.innerHTML = `
@@ -288,7 +288,7 @@ function renderCountSheet(content, raw) {
       const colLetter = String.fromCharCode(65 + colIdx);
       input.style.borderColor = 'var(--ks-blue)';
       try {
-        await sheetsUpdate(deliState.sa, deliState.sheetId, `${colLetter}${sheetRow}`, [[input.value]]);
+        await sheetsUpdate(deliState.sa, deliState.countSheetId || deliState.sheetId, `${colLetter}${sheetRow}`, [[input.value]]);
         input.style.borderColor = 'var(--green)';
         setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
       } catch (_) {
