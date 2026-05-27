@@ -3,12 +3,13 @@
 // All backed by Google Sheets tabs via sheetsApi.js.
 
 const DELI_TABS = {
-  inventory: { label: 'Inventory',  tab: 'Inventory',  headers: ['Item','Category','Unit','Count','Par Level','Reorder Point','Cost/Unit','Updated By','Last Updated'] },
-  foodcost:  { label: 'Food Cost',  tab: 'Food Cost',  headers: ['Date','Week','Sales ($)','COGS ($)','Food Cost %','Target %','Notes'] },
-  invoices:  { label: 'Invoices',   tab: 'Invoices',   headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
-  orders:    { label: 'Orders',     tab: 'Orders',     headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
-  recipes:   { label: 'Recipes',    tab: 'Recipes',    headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
-  suppliers: { label: 'Suppliers',  tab: 'Suppliers',  headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
+  inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
+  countlog:  { label: 'Count Log',  tab: 'COUNT HISTORY',       headers: ['Date','Item #','Section','Category','Item Name','On Hand','Flag'] },
+  foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
+  invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
+  orders:    { label: 'Orders',     tab: 'Orders',              headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
+  recipes:   { label: 'Recipes',    tab: 'Recipes',             headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
+  suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
@@ -145,6 +146,7 @@ async function switchDeliTab(container, tabId) {
 
   switch (tabId) {
     case 'inventory': renderInventory(content, deliState.data[tabId]); break;
+    case 'countlog':  renderCountLog(content,  deliState.data[tabId]); break;
     case 'foodcost':  renderFoodCost(content,  deliState.data[tabId]); break;
     case 'invoices':  renderInvoices(content,  deliState.data[tabId]); break;
     case 'orders':    renderOrders(content,    deliState.data[tabId]); break;
@@ -157,6 +159,11 @@ function reloadTab() {
   const container = document.getElementById('module-deli');
   if (container) switchDeliTab(container, deliState.activeTab);
 }
+
+const COUNT_BY_OPTIONS = ['BAG','BOX','CAKE','CAN','CARTON','CASE','CONTAINER','EACH','FLAT','JUG','LOAF','PACK','PAIL','PIE','ROLL','SHAKER','SLEEVE','OTHER'];
+const INV_SECTIONS     = ['Deli','Fountain','Branded Deli'];
+const INV_CATEGORIES   = ['Bread','Cheese','Condiments','Dairy','Deli Meat','Other','Packaging','Produce','BIB / CO2','Cafe Tango','Coffee','Coffee Beans','Creamer & Sweetener','Cups & Lids','Syrups & Sauce','Pizza','Spices','Toppings','Wings'];
+const INV_FLAGS        = ['OK','LOW','OUT'];
 
 // ════════════════════════════════════════
 // INVENTORY
@@ -321,41 +328,36 @@ function renderCountSheet(content, raw) {
 function renderInventory(content, rows) {
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
 
+  const outItems = dataRows.filter(r => (r[4]||'').toString().trim() === '0' || (r[4]||'').toString().trim() === '');
   const lowItems = dataRows.filter(r => {
-    const count   = parseFloat(r[3]) || 0;
-    const reorder = parseFloat(r[5]) || 0;
-    return reorder > 0 && count <= reorder;
+    const oh = parseFloat(r[4]) || 0;
+    const per = parseFloat(r[5]) || 0;
+    return oh > 0 && oh < per;
   });
 
   const bodyHTML = dataRows.length ? dataRows.map(r => {
-    const oor = (() => {
-      const count = parseFloat(r[3]) || 0;
-      const reorder = parseFloat(r[5]) || 0;
-      return reorder > 0 && count <= reorder;
-    })();
-    return `<tr class="${oor ? 'row-overdue' : ''}">
-      <td style="font-weight:600">${r[0]||''}</td>
-      <td>${r[1]||''}</td>
-      <td>${r[2]||''}</td>
-      <td style="font-weight:700;color:${oor?'var(--red)':'inherit'}">${r[3]||''}</td>
-      <td>${r[4]||''}</td>
-      <td>${r[5]||''}</td>
-      <td>$${r[6]||''}</td>
-      <td style="font-size:11px;color:var(--muted)">${r[8]||''}</td>
+    const oh = parseFloat(r[4]) || 0;
+    const out = oh === 0;
+    return `<tr class="${out ? 'row-overdue' : ''}">
+      <td style="font-size:11px;color:var(--muted)">${r[0]||''}</td>
+      <td style="font-weight:600">${r[1]||''}</td>
+      <td style="font-size:12px;color:var(--muted)">${r[2]||''}</td>
+      <td style="font-size:12px">${r[3]||''}</td>
+      <td style="font-weight:700;color:${out?'var(--red)':'inherit'}">${r[4]||''}</td>
+      <td>$${r[5]||''}</td>
+      <td style="font-weight:600">$${r[6]||''}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">
-    No items yet — add your first item below.
+  }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">
+    No inventory data — sheet may be loading or not yet shared with this app.
   </td></tr>`;
 
   content.innerHTML = `
-    ${lowItems.length ? `
+    ${(outItems.length || lowItems.length) ? `
     <div class="banner banner-warn">
       <div class="banner-icon">⚠</div>
       <div>
-        <strong>${lowItems.length} item${lowItems.length>1?'s':''} at or below reorder point</strong>
-        <ul style="margin-top:6px;padding-left:18px">
-          ${lowItems.map(r=>`<li>${r[0]} — Count: ${r[3]}, Reorder at: ${r[5]}</li>`).join('')}
-        </ul>
+        ${outItems.length ? `<strong>${outItems.length} item${outItems.length>1?'s':''} out of stock</strong><br>` : ''}
+        ${lowItems.length ? `<strong>${lowItems.length} item${lowItems.length>1?'s':''} running low</strong>` : ''}
       </div>
     </div>` : ''}
 
@@ -367,16 +369,15 @@ function renderInventory(content, rows) {
 
       <div id="inv-add-form" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);margin-bottom:16px">
         <div class="form-grid">
-          <div class="form-row"><label>Item Name</label><input type="text" id="inv-item" placeholder="e.g. Roast Beef"></div>
-          <div class="form-row"><label>Category</label>
-            <select id="inv-cat">${INVENTORY_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
+          <div class="form-row"><label>Count By</label>
+            <select id="inv-countby">${COUNT_BY_OPTIONS.map(c=>`<option>${c}</option>`).join('')}</select>
           </div>
-          <div class="form-row"><label>Unit</label><input type="text" id="inv-unit" placeholder="lbs, case, each…"></div>
-          <div class="form-row"><label>Current Count</label><input type="number" id="inv-count" min="0" step="0.1" placeholder="0"></div>
-          <div class="form-row"><label>Par Level</label><input type="number" id="inv-par" min="0" step="0.1" placeholder="0"></div>
-          <div class="form-row"><label>Reorder Point</label><input type="number" id="inv-reorder" min="0" step="0.1" placeholder="0"></div>
-          <div class="form-row"><label>Cost / Unit ($)</label><input type="number" id="inv-cost" min="0" step="0.01" placeholder="0.00"></div>
-          <div class="form-row"><label>Updated By</label><input type="text" id="inv-who" placeholder="Initials"></div>
+          <div class="form-row"><label>Item Name</label><input type="text" id="inv-item" placeholder="e.g. Chicken Breast Fritter"></div>
+          <div class="form-row"><label>Item #</label><input type="text" id="inv-itemnum" placeholder="e.g. 122974"></div>
+          <div class="form-row"><label>Case Pack</label><input type="text" id="inv-casepack" placeholder="e.g. 2/5Lb"></div>
+          <div class="form-row"><label>On Hand</label><input type="number" id="inv-onhand" min="0" step="0.1" placeholder="0"></div>
+          <div class="form-row"><label>Per ($)</label><input type="number" id="inv-per" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="form-row"><label>Total ($)</label><input type="text" id="inv-total" readonly style="background:var(--bg)" placeholder="auto"></div>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary btn-sm" id="save-inv-btn">Save Item</button>
@@ -388,8 +389,8 @@ function renderInventory(content, rows) {
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>
-            <th>Item</th><th>Category</th><th>Unit</th><th>Count</th>
-            <th>Par</th><th>Reorder At</th><th>$/Unit</th><th>Last Updated</th>
+            <th>Count By</th><th>Item</th><th>Item#</th><th>Case Pack</th>
+            <th>On Hand</th><th>Per</th><th>Total</th>
           </tr></thead>
           <tbody>${bodyHTML}</tbody>
         </table>
@@ -397,8 +398,20 @@ function renderInventory(content, rows) {
     </div>
   `;
 
-  const form   = content.querySelector('#inv-add-form');
+  const form    = content.querySelector('#inv-add-form');
   const showBtn = content.querySelector('#show-inv-form');
+  const onhandEl = content.querySelector('#inv-onhand');
+  const perEl    = content.querySelector('#inv-per');
+  const totalEl  = content.querySelector('#inv-total');
+
+  const calcTotal = () => {
+    const oh  = parseFloat(onhandEl.value) || 0;
+    const per = parseFloat(perEl.value) || 0;
+    totalEl.value = oh > 0 && per > 0 ? '$' + (oh * per).toFixed(2) : '';
+  };
+  onhandEl.addEventListener('input', calcTotal);
+  perEl.addEventListener('input', calcTotal);
+
   content.querySelector('#cancel-inv-btn').addEventListener('click', () => { form.style.display='none'; showBtn.style.display=''; });
   showBtn.addEventListener('click', () => { form.style.display='block'; showBtn.style.display='none'; });
 
@@ -408,21 +421,20 @@ function renderInventory(content, rows) {
     const item     = content.querySelector('#inv-item')?.value?.trim();
     if (!item) { statusEl.innerHTML='<span style="color:var(--red)">Item name required.</span>'; return; }
 
+    const oh  = parseFloat(content.querySelector('#inv-onhand')?.value) || 0;
+    const per = parseFloat(content.querySelector('#inv-per')?.value) || 0;
     const row = [
+      content.querySelector('#inv-countby')?.value,
       item,
-      content.querySelector('#inv-cat')?.value,
-      content.querySelector('#inv-unit')?.value?.trim(),
-      content.querySelector('#inv-count')?.value,
-      content.querySelector('#inv-par')?.value,
-      content.querySelector('#inv-reorder')?.value,
-      content.querySelector('#inv-cost')?.value,
-      content.querySelector('#inv-who')?.value?.trim(),
-      new Date().toLocaleDateString(),
+      content.querySelector('#inv-itemnum')?.value?.trim(),
+      content.querySelector('#inv-casepack')?.value?.trim(),
+      oh,
+      per,
+      oh > 0 && per > 0 ? (oh * per).toFixed(2) : '',
     ];
 
     btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
     try {
-      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Inventory', DELI_TABS.inventory.headers);
       await sheetsAppend(deliState.sa, deliState.sheetId, 'Inventory!A1', [row]);
       statusEl.innerHTML='<span style="color:var(--green)">Item saved.</span>';
       setTimeout(reloadTab, 600);
@@ -434,62 +446,148 @@ function renderInventory(content, rows) {
 }
 
 // ════════════════════════════════════════
+// COUNT LOG  (writes to COUNT HISTORY tab)
+// ════════════════════════════════════════
+
+function renderCountLog(content, rows) {
+  const invData   = deliState.data['inventory'] || [];
+  const invItems  = invData.slice(1).map(r => ({ num: r[2]||'', name: r[1]||'', section: '', category: '' }));
+  const dataRows  = rows.length > 1 ? rows.slice(1) : [];
+  const today     = new Date().toISOString().split('T')[0];
+  const recent    = dataRows.slice(-20).reverse();
+
+  const itemOptions = invItems.length
+    ? invItems.map(i => `<option value="${i.num}">${i.num ? i.num + ' — ' : ''}${i.name}</option>`).join('')
+    : '<option value="">— load Inventory tab first —</option>';
+
+  const bodyHTML = recent.map(r => `<tr>
+    <td>${r[0]||''}</td>
+    <td style="font-size:12px">${r[1]||''}</td>
+    <td>${r[2]||''}</td>
+    <td>${r[3]||''}</td>
+    <td style="font-weight:600">${r[4]||''}</td>
+    <td style="font-weight:700">${r[5]||''}</td>
+    <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${r[6]==='OUT'?'var(--red)':r[6]==='LOW'?'var(--amber)':'var(--green)'};color:#fff">${r[6]||''}</span></td>
+  </tr>`).join('');
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title">Log a Count Entry</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Date</label><input type="date" id="cl-date" value="${today}"></div>
+        <div class="form-row"><label>Item (from inventory)</label>
+          <select id="cl-item">${itemOptions}</select>
+        </div>
+        <div class="form-row"><label>Section</label>
+          <select id="cl-section">${INV_SECTIONS.map(s=>`<option>${s}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>Category</label>
+          <select id="cl-cat">${INV_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>On Hand Count</label><input type="number" id="cl-onhand" min="0" step="0.1" placeholder="0"></div>
+        <div class="form-row"><label>Flag</label>
+          <select id="cl-flag">${INV_FLAGS.map(f=>`<option>${f}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="save-cl-btn">Log Count</button></div>
+      <div id="cl-status" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recent Count Entries</div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Item#</th><th>Section</th><th>Category</th><th>Item Name</th><th>On Hand</th><th>Flag</th></tr></thead>
+          <tbody>${bodyHTML||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">No count entries yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  content.querySelector('#save-cl-btn').addEventListener('click', async () => {
+    const btn       = content.querySelector('#save-cl-btn');
+    const statusEl  = content.querySelector('#cl-status');
+    const date      = content.querySelector('#cl-date')?.value;
+    const selEl     = content.querySelector('#cl-item');
+    const itemNum   = selEl?.value || '';
+    const itemName  = selEl?.options[selEl.selectedIndex]?.text?.replace(/^\S+ — /, '') || '';
+    const section   = content.querySelector('#cl-section')?.value;
+    const cat       = content.querySelector('#cl-cat')?.value;
+    const onhand    = content.querySelector('#cl-onhand')?.value;
+    const flag      = content.querySelector('#cl-flag')?.value;
+
+    if (!date || !onhand) { statusEl.innerHTML='<span style="color:var(--red)">Date and On Hand count required.</span>'; return; }
+
+    btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
+    try {
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'COUNT HISTORY', DELI_TABS.countlog.headers);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'COUNT HISTORY!A1', [[date, itemNum, section, cat, itemName, onhand, flag]]);
+      statusEl.innerHTML='<span style="color:var(--green)">Count logged.</span>';
+      setTimeout(reloadTab, 600);
+    } catch(err) {
+      statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled=false; btn.textContent='Log Count'; }
+  });
+}
+
+// ════════════════════════════════════════
 // FOOD COST
 // ════════════════════════════════════════
 
 function renderFoodCost(content, rows) {
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
-  const today = new Date().toISOString().split('T')[0];
+  const today    = new Date().toISOString().split('T')[0];
+  const recent   = dataRows.slice(-8).reverse();
 
-  const recent = dataRows.slice(-8).reverse();
   const avgFC = recent.length
-    ? (recent.reduce((s,r)=>s+(parseFloat(r[4])||0),0)/recent.length).toFixed(1)
+    ? (recent.reduce((s,r)=>s+(parseFloat(r[9])||0),0)/recent.length).toFixed(1)
     : '--';
-
   const fcColor = v => parseFloat(v)>30?'red':parseFloat(v)>25?'amber':'green';
 
   const histHTML = recent.map(r => {
-    const pct = parseFloat(r[4])||0;
+    const pct = parseFloat(r[9])||0;
     const col = pct>30?'var(--red)':pct>25?'var(--amber)':'var(--green)';
     return `<tr>
-      <td>${r[0]||''}</td><td>${r[1]||''}</td>
-      <td>$${r[2]||'0'}</td><td>$${r[3]||'0'}</td>
-      <td style="font-weight:700;color:${col}">${r[4]||'--'}%</td>
-      <td>${r[5]||'--'}%</td>
-      <td style="font-size:11px;color:var(--muted)">${r[6]||''}</td>
+      <td>${r[0]||''}</td>
+      <td>$${r[1]||'0'}</td>
+      <td>$${r[2]||'0'} / $${r[3]||'0'} / $${r[4]||'0'}</td>
+      <td style="font-size:11px">HB: $${r[5]||'0'} / Icee: $${r[6]||'0'} / BEK: $${r[7]||'0'}</td>
+      <td>$${r[8]||'0'}</td>
+      <td style="font-weight:700;color:${col}">${pct||'--'}%</td>
     </tr>`;
   }).join('');
 
   content.innerHTML = `
     <div class="stats-row">
-      <div class="stat-pill">
-        <div class="stat-pill-label">4-Week Avg</div>
-        <div class="stat-pill-value ${avgFC!=='--'?fcColor(avgFC):''}">${avgFC}%</div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-pill-label">Entries</div>
-        <div class="stat-pill-value">${dataRows.length}</div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-pill-label">Target</div>
-        <div class="stat-pill-value">25%</div>
-      </div>
+      <div class="stat-pill"><div class="stat-pill-label">8-Wk Avg</div><div class="stat-pill-value ${avgFC!=='--'?fcColor(avgFC):''}">${avgFC}%</div></div>
+      <div class="stat-pill"><div class="stat-pill-label">Entries</div><div class="stat-pill-value">${dataRows.length}</div></div>
+      <div class="stat-pill"><div class="stat-pill-label">Target</div><div class="stat-pill-value">25%</div></div>
     </div>
 
     <div class="card">
       <div class="card-title">Log Weekly Food Cost</div>
       <div class="form-grid">
         <div class="form-row"><label>Week End Date</label><input type="date" id="fc-date" value="${today}"></div>
-        <div class="form-row"><label>Week Label</label><input type="text" id="fc-week" placeholder="e.g. WK-23"></div>
-        <div class="form-row"><label>Gross Sales ($)</label><input type="number" id="fc-sales" min="0" step="0.01" placeholder="0.00"></div>
-        <div class="form-row"><label>Cost of Goods ($)</label><input type="number" id="fc-cogs" min="0" step="0.01" placeholder="0.00"></div>
-        <div class="form-row"><label>Food Cost % (auto)</label><input type="text" id="fc-pct" readonly style="background:var(--bg)" placeholder="—"></div>
-        <div class="form-row"><label>Target %</label><input type="number" id="fc-target" value="25" min="0" max="100" step="0.1"></div>
+        <div class="form-row"><label>Weekly Sales ($)</label><input type="number" id="fc-sales" min="0" step="0.01" placeholder="0.00"></div>
       </div>
-      <div class="form-row"><label>Notes</label><textarea id="fc-notes" placeholder="Promotions, holidays, unusual variance…"></textarea></div>
-      <div class="btn-row">
-        <button class="btn btn-primary" id="save-fc-btn">Save Entry</button>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 6px">Beginning Inventory ($)</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Deli</label><input type="number" id="fc-beg-deli" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Fountain</label><input type="number" id="fc-beg-fountain" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Branded Deli</label><input type="number" id="fc-beg-branded" min="0" step="0.01" placeholder="0.00"></div>
       </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 6px">Purchases ($)</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Hunt Brothers</label><input type="number" id="fc-p-hb" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Icee</label><input type="number" id="fc-p-icee" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Ben E. Keith</label><input type="number" id="fc-p-bek" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="form-row"><label>COGS ($) (auto)</label><input type="text" id="fc-cogs" readonly style="background:var(--bg)" placeholder="auto"></div>
+        <div class="form-row"><label>Food Cost % (auto)</label><input type="text" id="fc-pct" readonly style="background:var(--bg)" placeholder="auto"></div>
+      </div>
+      <div class="form-row" style="margin-top:8px"><label>Notes</label><textarea id="fc-notes" placeholder="Promotions, holidays, unusual variance…"></textarea></div>
+      <div class="btn-row"><button class="btn btn-primary" id="save-fc-btn">Save Entry</button></div>
       <div id="fc-status" style="margin-top:8px;font-size:13px"></div>
     </div>
 
@@ -497,41 +595,52 @@ function renderFoodCost(content, rows) {
       <div class="card-title">Recent Entries</div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Week</th><th>Sales</th><th>COGS</th><th>Food Cost %</th><th>Target %</th><th>Notes</th></tr></thead>
-          <tbody>${histHTML||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">No entries yet.</td></tr>'}</tbody>
+          <thead><tr><th>Date</th><th>Sales</th><th>Beg Inv (D/F/B)</th><th>Purchases</th><th>COGS</th><th>FC%</th></tr></thead>
+          <tbody>${histHTML||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">No entries yet.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `;
 
-  const salesEl = content.querySelector('#fc-sales');
-  const cogsEl  = content.querySelector('#fc-cogs');
-  const pctEl   = content.querySelector('#fc-pct');
-  const calcFC  = () => {
-    const s = parseFloat(salesEl.value)||0;
-    const c = parseFloat(cogsEl.value)||0;
-    pctEl.value = s>0 ? ((c/s)*100).toFixed(1)+'%' : '';
+  const calcAuto = () => {
+    const sales  = parseFloat(content.querySelector('#fc-sales')?.value) || 0;
+    const begD   = parseFloat(content.querySelector('#fc-beg-deli')?.value) || 0;
+    const begF   = parseFloat(content.querySelector('#fc-beg-fountain')?.value) || 0;
+    const begB   = parseFloat(content.querySelector('#fc-beg-branded')?.value) || 0;
+    const pHB    = parseFloat(content.querySelector('#fc-p-hb')?.value) || 0;
+    const pIcee  = parseFloat(content.querySelector('#fc-p-icee')?.value) || 0;
+    const pBEK   = parseFloat(content.querySelector('#fc-p-bek')?.value) || 0;
+    const cogs   = begD + begF + begB + pHB + pIcee + pBEK;
+    content.querySelector('#fc-cogs').value = cogs > 0 ? '$' + cogs.toFixed(2) : '';
+    content.querySelector('#fc-pct').value  = sales > 0 && cogs > 0 ? ((cogs/sales)*100).toFixed(1) + '%' : '';
   };
-  salesEl.addEventListener('input', calcFC);
-  cogsEl.addEventListener('input', calcFC);
+  ['#fc-sales','#fc-beg-deli','#fc-beg-fountain','#fc-beg-branded','#fc-p-hb','#fc-p-icee','#fc-p-bek'].forEach(sel => {
+    content.querySelector(sel)?.addEventListener('input', calcAuto);
+  });
 
   content.querySelector('#save-fc-btn').addEventListener('click', async () => {
-    const btn      = content.querySelector('#save-fc-btn');
+    const btn    = content.querySelector('#save-fc-btn');
     const statusEl = content.querySelector('#fc-status');
-    const date     = content.querySelector('#fc-date')?.value;
-    const week     = content.querySelector('#fc-week')?.value?.trim();
-    const sales    = content.querySelector('#fc-sales')?.value;
-    const cogs     = content.querySelector('#fc-cogs')?.value;
-    const target   = content.querySelector('#fc-target')?.value;
-    const notes    = content.querySelector('#fc-notes')?.value?.trim();
-    const pct      = parseFloat(sales)>0 ? ((parseFloat(cogs)/parseFloat(sales))*100).toFixed(1) : '';
+    const date   = content.querySelector('#fc-date')?.value;
+    const sales  = content.querySelector('#fc-sales')?.value;
+    const begD   = content.querySelector('#fc-beg-deli')?.value;
+    const begF   = content.querySelector('#fc-beg-fountain')?.value;
+    const begB   = content.querySelector('#fc-beg-branded')?.value;
+    const pHB    = content.querySelector('#fc-p-hb')?.value;
+    const pIcee  = content.querySelector('#fc-p-icee')?.value;
+    const pBEK   = content.querySelector('#fc-p-bek')?.value;
+    const notes  = content.querySelector('#fc-notes')?.value?.trim();
 
-    if (!date||!sales||!cogs) { statusEl.innerHTML='<span style="color:var(--red)">Date, Sales, and COGS required.</span>'; return; }
+    const saleN  = parseFloat(sales)||0;
+    const cogs   = (parseFloat(begD)||0)+(parseFloat(begF)||0)+(parseFloat(begB)||0)+(parseFloat(pHB)||0)+(parseFloat(pIcee)||0)+(parseFloat(pBEK)||0);
+    const pct    = saleN > 0 ? ((cogs/saleN)*100).toFixed(1) : '';
+
+    if (!date||!sales) { statusEl.innerHTML='<span style="color:var(--red)">Date and Weekly Sales required.</span>'; return; }
 
     btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
     try {
-      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Food Cost', DELI_TABS.foodcost.headers);
-      await sheetsAppend(deliState.sa, deliState.sheetId, 'Food Cost!A1', [[date,week,sales,cogs,pct,target,notes]]);
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Food Cost Calculator', DELI_TABS.foodcost.headers);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Food Cost Calculator!A1', [[date,sales,begD,begF,begB,pHB,pIcee,pBEK,cogs.toFixed(2),pct,notes]]);
       statusEl.innerHTML='<span style="color:var(--green)">Entry saved.</span>';
       setTimeout(reloadTab, 600);
     } catch(err) {
