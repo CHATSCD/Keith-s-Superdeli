@@ -36,7 +36,7 @@ function deliProInit(container, storeNum, storeName, sheetId, serviceAccount, co
   deliState.storeName    = storeName;
   deliState.sheetId      = sheetId;
   deliState.sa           = serviceAccount;
-  deliState.countSheetId = countSheetId || null;
+  deliState.sheetId = countSheetId || null;
   deliState.data         = {};
   deliState.activeTab    = 'inventory';
 
@@ -103,10 +103,10 @@ async function switchDeliTab(container, tabId) {
     : '';
 
   // Inventory: load from count sheet when one is linked for this store
-  if (tabId === 'inventory' && deliState.countSheetId) {
+  if (tabId === 'inventory' && deliState.sheetId) {
     let raw;
     try {
-      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:Z1000');
+      const result = await sheetsGet(deliState.sa, deliState.sheetId, 'A1:Z1000');
       raw = result.values || [];
     } catch (err) {
       content.innerHTML = `
@@ -145,7 +145,7 @@ async function switchDeliTab(container, tabId) {
   }
 
   switch (tabId) {
-    case 'inventory': renderInventory(content, deliState.data[tabId]); break;
+    case 'inventory': renderCountSheet(content, deliState.data[tabId]); break;
     case 'countlog':  renderCountLog(content,  deliState.data[tabId]); break;
     case 'foodcost':  renderFoodCost(content,  deliState.data[tabId]); break;
     case 'invoices':  renderInvoices(content,  deliState.data[tabId]); break;
@@ -288,7 +288,7 @@ function renderCountSheet(content, raw) {
       const colLetter = String.fromCharCode(65 + colIdx);
       input.style.borderColor = 'var(--ks-blue)';
       try {
-        await sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[input.value]]);
+        await sheetsUpdate(deliState.sa, deliState.sheetId, `${colLetter}${sheetRow}`, [[input.value]]);
         input.style.borderColor = 'var(--green)';
         setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
       } catch (_) {
@@ -313,7 +313,7 @@ function renderCountSheet(content, raw) {
         const colIdx    = parseInt(inp.dataset.csCol, 10);
         if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
         const colLetter = String.fromCharCode(65 + colIdx);
-        return sheetsUpdate(deliState.sa, deliState.countSheetId, `${colLetter}${sheetRow}`, [[inp.value]]);
+        return sheetsUpdate(deliState.sa, deliState.sheetId, `${colLetter}${sheetRow}`, [[inp.value]]);
       }));
       saveAllStatus.innerHTML = `<span style="color:var(--green)">All ${inputs.length} counts saved.</span>`;
     } catch (err) {
