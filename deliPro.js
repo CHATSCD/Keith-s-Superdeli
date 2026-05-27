@@ -179,9 +179,21 @@ function renderCountSheet(content, raw) {
     return;
   }
 
-  const headerRow = raw[0] || [];
+  // Scan the first 6 rows to find the real header row — it's the first one that contains
+  // "on hand" (or similar). Sheets often have a title row or instruction row above headers.
+  let headerRowIdx = 0;
+  for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+    if (raw[ri].some(c => /on.?hand|count.?by|item.?#|item\s*num/i.test(c || ''))) {
+      headerRowIdx = ri;
+      break;
+    }
+  }
 
-  // Find the On Hand / count column — scan headers first, then default to col E (index 4)
+  const headerRow = raw[headerRowIdx] || [];
+  // Data starts one row after the header; sheet row number = headerRowIdx + 2 + dataIdx (1-based + header offset)
+  const dataRows  = raw.slice(headerRowIdx + 1);
+
+  // Find the On Hand / count column
   let countColIdx = -1;
   for (let i = 0; i < headerRow.length; i++) {
     if (/on.?hand|count|qty|quantity|amount/i.test(headerRow[i] || '')) { countColIdx = i; break; }
@@ -193,24 +205,20 @@ function renderCountSheet(content, raw) {
   for (let i = 0; i < headerRow.length; i++) {
     if (/status/i.test(headerRow[i] || '')) { statusColIdx = i; break; }
   }
-  // If no STATUS header, check last column of the widest data row for OUT/LOW/OK pattern
   if (statusColIdx === -1) {
-    const sample = raw.slice(1).find(r => r.length >= 8);
+    const sample = dataRows.find(r => r.length >= 8);
     if (sample) {
       const last = (sample[sample.length - 1] || '').trim();
       if (/^(out|low|ok|no.?par)$/i.test(last)) statusColIdx = sample.length - 1;
     }
   }
 
-  // Build display headers — label blank count column as "On Hand"
+  // Build display headers — blank header cells are hidden (null), except the count column
   const numCols = Math.max(...raw.map(r => r.length), 1);
   const headers = Array.from({ length: numCols }, (_, i) => {
     if (i === countColIdx) return 'On Hand';
-    return (headerRow[i] || '').trim() || null; // null = hide column
+    return (headerRow[i] || '').trim() || null;
   });
-
-  // Count visible columns (non-null headers or count col)
-  const visibleCols = headers.filter((h, i) => h !== null || i === countColIdx);
 
   const statusColor = v => {
     const s = (v || '').toUpperCase();
@@ -221,8 +229,9 @@ function renderCountSheet(content, raw) {
     return '';
   };
 
-  const rowsHTML = raw.slice(1).map((r, rawIdx) => {
-    const sheetRow = rawIdx + 2;
+  const rowsHTML = dataRows.map((r, dataIdx) => {
+    // Sheet row number: header is at headerRowIdx+1 (1-based), data starts one after
+    const sheetRow = headerRowIdx + 2 + dataIdx;
     if (r.every(c => !(c || '').trim())) return '';
 
     const colA    = (r[0] || '').trim();
@@ -238,7 +247,7 @@ function renderCountSheet(content, raw) {
     }
 
     const cells = headers.map((h, i) => {
-      if (h === null) return ''; // skip hidden columns
+      if (h === null) return '';
       const val = (r[i] || '').trim();
 
       if (i === countColIdx) {
@@ -256,7 +265,7 @@ function renderCountSheet(content, raw) {
   const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('');
 
   // Summary: count OUT items
-  const outCount = raw.slice(1).filter(r => {
+  const outCount = dataRows.filter(r => {
     const s = statusColIdx >= 0 ? (r[statusColIdx] || '') : '';
     return /^out$/i.test(s.trim());
   }).length;
