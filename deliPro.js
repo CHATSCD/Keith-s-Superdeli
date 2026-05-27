@@ -179,11 +179,11 @@ function renderCountSheet(content, raw) {
     return;
   }
 
-  // Scan the first 6 rows to find the real header row — it's the first one that contains
-  // "on hand" (or similar). Sheets often have a title row or instruction row above headers.
+  // Scan the first 6 rows to find the real header row.
+  // Use "count by" or "item#" — NOT "on hand" alone because title rows often contain it.
   let headerRowIdx = 0;
   for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
-    if (raw[ri].some(c => /on.?hand|count.?by|item.?#|item\s*num/i.test(c || ''))) {
+    if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) {
       headerRowIdx = ri;
       break;
     }
@@ -193,12 +193,12 @@ function renderCountSheet(content, raw) {
   // Data starts one row after the header; sheet row number = headerRowIdx + 2 + dataIdx (1-based + header offset)
   const dataRows  = raw.slice(headerRowIdx + 1);
 
-  // Find the On Hand / count column
+  // Find the On Hand column — match "on hand" specifically, not "count" (which hits "Count By")
   let countColIdx = -1;
   for (let i = 0; i < headerRow.length; i++) {
-    if (/on.?hand|count|qty|quantity|amount/i.test(headerRow[i] || '')) { countColIdx = i; break; }
+    if (/^on.?hand$/i.test((headerRow[i] || '').trim())) { countColIdx = i; break; }
   }
-  if (countColIdx === -1) countColIdx = 4;
+  if (countColIdx === -1) countColIdx = 4; // default to col E
 
   // Find a STATUS column (for color coding)
   let statusColIdx = -1;

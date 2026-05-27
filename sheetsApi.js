@@ -181,18 +181,24 @@ async function sheetsAppend(serviceAccount, sheetId, range, values) {
 }
 
 async function sheetsUpdate(serviceAccount, sheetId, range, values) {
-  const token = await getAccessToken(serviceAccount);
-  const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const resp = await fetchWithTimeout(url, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ values }),
-  });
-  if (!resp.ok) throw new Error(`Sheets UPDATE failed: ${await resp.text()}`);
-  return resp.json();
+  const RATE_DELAYS = [8000, 25000, 60000];
+  let lastErr;
+  for (let attempt = 0; attempt <= RATE_DELAYS.length; attempt++) {
+    const token = await getAccessToken(serviceAccount);
+    const url = `${SHEETS_BASE}/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+    const resp = await fetchWithTimeout(url, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values }),
+    });
+    if (resp.ok) return resp.json();
+    const body = await resp.text();
+    const isRateLimit = resp.status === 429 || /RESOURCE_EXHAUSTED|quota/i.test(body);
+    lastErr = new Error(`Sheets UPDATE failed: ${body}`);
+    if (!isRateLimit || attempt === RATE_DELAYS.length) break;
+    await new Promise(r => setTimeout(r, RATE_DELAYS[attempt]));
+  }
+  throw lastErr;
 }
 
 async function sheetsBatchGet(serviceAccount, sheetId, ranges) {
