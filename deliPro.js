@@ -294,10 +294,12 @@ function renderCountSheet(content, raw) {
       const sheetRow  = input.dataset.csRow;
       const colIdx    = parseInt(input.dataset.csCol, 10);
       if (!sheetRow || isNaN(colIdx)) return;
-      const colLetter = String.fromCharCode(65 + colIdx);
+      const colLetter     = String.fromCharCode(65 + colIdx);
+      const saveSheetId   = deliState.countSheetId || deliState.sheetId;
+      const saveTabPrefix = deliState.countSheetId ? '' : 'Inventory!';
       input.style.borderColor = 'var(--ks-blue)';
       try {
-        await sheetsUpdate(deliState.sa, deliState.countSheetId || deliState.sheetId, `${colLetter}${sheetRow}`, [[input.value]]);
+        await sheetsUpdate(deliState.sa, saveSheetId, `${saveTabPrefix}${colLetter}${sheetRow}`, [[input.value]]);
         input.style.borderColor = 'var(--green)';
         setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
       } catch (_) {
@@ -317,12 +319,14 @@ function renderCountSheet(content, raw) {
     saveAllStatus.style.display = 'block';
     saveAllStatus.innerHTML = '<span style="color:var(--muted)">Writing counts…</span>';
     try {
+      const bulkSheetId   = deliState.countSheetId || deliState.sheetId;
+      const bulkTabPrefix = deliState.countSheetId ? '' : 'Inventory!';
       await Promise.all(inputs.map(inp => {
         const sheetRow  = inp.dataset.csRow;
         const colIdx    = parseInt(inp.dataset.csCol, 10);
         if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
         const colLetter = String.fromCharCode(65 + colIdx);
-        return sheetsUpdate(deliState.sa, deliState.sheetId, `${colLetter}${sheetRow}`, [[inp.value]]);
+        return sheetsUpdate(deliState.sa, bulkSheetId, `${bulkTabPrefix}${colLetter}${sheetRow}`, [[inp.value]]);
       }));
       saveAllStatus.innerHTML = `<span style="color:var(--green)">All ${inputs.length} counts saved.</span>`;
     } catch (err) {
