@@ -182,11 +182,20 @@ function renderCountSheet(content, raw) {
   // Scan the first 6 rows to find the real header row.
   // Use "count by" or "item#" — NOT "on hand" alone because title rows often contain it.
   let headerRowIdx = 0;
+  let headerFound = false;
   for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
     if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) {
       headerRowIdx = ri;
+      headerFound = true;
       break;
     }
+  }
+  // Fallback: if no header pattern matched and row 0 looks like a title (≤2 populated cells),
+  // use row 1 as the header if it has more content — handles "DELI PRO — INVENTORY VALUATION" style sheets.
+  if (!headerFound) {
+    const row0Cells = (raw[0] || []).filter(c => (c || '').trim()).length;
+    const row1Cells = (raw[1] || []).filter(c => (c || '').trim()).length;
+    if (row0Cells <= 2 && row1Cells >= 3) headerRowIdx = 1;
   }
 
   const headerRow = raw[headerRowIdx] || [];
