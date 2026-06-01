@@ -50,6 +50,7 @@ const STORE_NAMES = {
 // Store 127 (Collins) intentionally excluded per coordinator instruction.
 const COUNT_SHEET_IDS = {
   '60':  '1eGse-kalezUhOzhXxla1mJxAAcLula64iGOiaeff0Hs',
+  '107': '10aknBx8DyrkHlRkK6b57hRa4CyrJvt2RmMfGLxtNDtw',
   '82':  '1zeoB03u7qRaouRhgT-wYKlh-B5-rRyffJ6ZhkZ06dvc',
   '109': '1DLoZvAS6tlsmXZ3NfYYK-RaL_Salg0EBRHCl0empMA4',
   '112': '1gRZp3lyOdASKSa7iqyEM3_xKyUuQr7UBH542sHZBFrc',
