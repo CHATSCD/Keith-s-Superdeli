@@ -170,6 +170,27 @@ const INV_FLAGS        = ['OK','LOW','OUT'];
 // ════════════════════════════════════════
 
 // ════════════════════════════════════════
+// BEK PRICE FEED  (Supabase lookup)
+// ════════════════════════════════════════
+
+async function bekFetchPrices(itemNums) {
+  const sbUrl = (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : '';
+  const sbKey = (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : '';
+  if (!sbUrl || !sbKey) throw new Error('BEK price feed not configured (add SB_URL / SB_KEY to serviceAccount.js)');
+  if (itemNums.length === 0) return {};
+  const inVal = itemNums.map(n => `"${String(n).replace(/"/g, '')}"`)  .join(',');
+  const url = `${sbUrl}/rest/v1/bek_prices?item_num=in.(${inVal})&select=item_num,price`;
+  const resp = await fetch(url, {
+    headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+  });
+  if (!resp.ok) throw new Error(`Supabase error ${resp.status}`);
+  const rows = await resp.json();
+  const map = {};
+  (rows || []).forEach(r => { map[String(r.item_num)] = r.price; });
+  return map;
+}
+
+// ════════════════════════════════════════
 // COUNT SHEET (native display, no conversion)
 // ════════════════════════════════════════
 
@@ -208,6 +229,20 @@ function renderCountSheet(content, raw) {
     if (/^on.?hand$/i.test((headerRow[i] || '').trim())) { countColIdx = i; break; }
   }
   if (countColIdx === -1) countColIdx = 4; // default to col E
+
+  // Find Item# column (for BEK price lookup)
+  let itemNumColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (/item.?#|item.?num/i.test((headerRow[i] || '').trim())) { itemNumColIdx = i; break; }
+  }
+  if (itemNumColIdx === -1) itemNumColIdx = 2;
+
+  // Find Per/cost column (updated with BEK prices for checked items)
+  let perColIdx = -1;
+  for (let i = 0; i < headerRow.length; i++) {
+    if (/^per$|^cost$|^price$/i.test((headerRow[i] || '').trim())) { perColIdx = i; break; }
+  }
+  if (perColIdx === -1) perColIdx = 5;
 
   // Find a STATUS column (for color coding)
   let statusColIdx = -1;
@@ -251,7 +286,7 @@ function renderCountSheet(content, raw) {
     // Section header row: product col empty, name col has text, no count, few cells populated
     if (!colA && colB && !countV && nonEmpty <= 3) {
       return `<tr>
-        <td colspan="${numCols}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
+        <td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
       </tr>`;
     }
 
@@ -268,10 +303,13 @@ function renderCountSheet(content, raw) {
       return `<td>${val}</td>`;
     }).join('');
 
-    return `<tr>${cells}</tr>`;
+    const itemNum  = (r[itemNumColIdx] || '').trim();
+    const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
+
+    return `<tr>${cells}${purchCell}</tr>`;
   }).join('');
 
-  const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('');
+  const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
 
   // Summary: count OUT items
   const outCount = dataRows.filter(r => {
@@ -285,7 +323,7 @@ function renderCountSheet(content, raw) {
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center">
           ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
-          <button class="btn btn-primary btn-sm" id="save-all-counts-btn">Save All Counts</button>
+          <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
       </div>
       <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
@@ -319,10 +357,11 @@ function renderCountSheet(content, raw) {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
   });
 
-  const saveAllBtn   = content.querySelector('#save-all-counts-btn');
+  const saveAllBtn    = content.querySelector('#save-all-counts-btn');
   const saveAllStatus = content.querySelector('#save-all-counts-status');
   saveAllBtn.addEventListener('click', async () => {
-    const inputs = [...content.querySelectorAll('.cs-count-input')];
+    const inputs       = [...content.querySelectorAll('.cs-count-input')];
+    const checkedBoxes = [...content.querySelectorAll('.cs-purch-chk:checked')];
     saveAllBtn.disabled = true;
     saveAllBtn.textContent = 'Saving…';
     saveAllStatus.style.display = 'block';
@@ -330,19 +369,48 @@ function renderCountSheet(content, raw) {
     try {
       const bulkSheetId   = deliState.countSheetId || deliState.sheetId;
       const bulkTabPrefix = deliState.countSheetId ? '' : 'Inventory!';
+
       await Promise.all(inputs.map(inp => {
-        const sheetRow  = inp.dataset.csRow;
-        const colIdx    = parseInt(inp.dataset.csCol, 10);
+        const sheetRow = inp.dataset.csRow;
+        const colIdx   = parseInt(inp.dataset.csCol, 10);
         if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
         const colLetter = String.fromCharCode(65 + colIdx);
         return sheetsUpdate(deliState.sa, bulkSheetId, `${bulkTabPrefix}${colLetter}${sheetRow}`, [[inp.value]]);
       }));
-      saveAllStatus.innerHTML = `<span style="color:var(--green)">All ${inputs.length} counts saved.</span>`;
+
+      if (checkedBoxes.length > 0) {
+        saveAllStatus.innerHTML = '<span style="color:var(--muted)">Fetching BEK prices…</span>';
+        const itemNums = [...new Set(checkedBoxes.map(c => c.dataset.itemNum).filter(Boolean))];
+        let priceMap = {};
+        try {
+          priceMap = await bekFetchPrices(itemNums);
+        } catch (pErr) {
+          saveAllStatus.innerHTML = `<span style="color:var(--amber)">⚠ Counts saved. BEK price update failed: ${pErr.message}</span>`;
+          return;
+        }
+
+        saveAllStatus.innerHTML = '<span style="color:var(--muted)">Updating BEK prices…</span>';
+        const priceWrites = checkedBoxes
+          .filter(c => priceMap[c.dataset.itemNum] != null)
+          .map(c => {
+            const colLetter = String.fromCharCode(65 + parseInt(c.dataset.perCol, 10));
+            return sheetsUpdate(deliState.sa, bulkSheetId, `${bulkTabPrefix}${colLetter}${c.dataset.csRow}`, [[priceMap[c.dataset.itemNum]]]);
+          });
+        await Promise.all(priceWrites);
+
+        checkedBoxes.forEach(c => { c.checked = false; });
+
+        const updated = priceWrites.length;
+        const skipped = checkedBoxes.length - updated;
+        saveAllStatus.innerHTML = `<span style="color:var(--green)">✓ ${inputs.length} counts saved, ${updated} BEK price${updated !== 1 ? 's' : ''} updated.${skipped > 0 ? ` <span style="color:var(--amber)">${skipped} item${skipped !== 1 ? 's' : ''} not in BEK feed.</span>` : ''}</span>`;
+      } else {
+        saveAllStatus.innerHTML = `<span style="color:var(--green)">✓ All ${inputs.length} counts saved.</span>`;
+      }
     } catch (err) {
       saveAllStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally {
       saveAllBtn.disabled = false;
-      saveAllBtn.textContent = 'Save All Counts';
+      saveAllBtn.textContent = '💾 Save Count & Update Purchased Prices';
     }
   });
 }
