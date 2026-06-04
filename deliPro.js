@@ -280,6 +280,24 @@ function renderCountSheet(content, raw) {
     return '';
   };
 
+  // ── Build section map so we can tag every row with its section ──
+  let currentSection = 'all';
+  const rowSections = dataRows.map(r => {
+    if (r.every(c => !(c || '').trim())) return currentSection;
+    const colA   = (r[0] || '').trim();
+    const colB   = (r[1] || '').trim();
+    const countV = (r[countColIdx] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').trim()).length;
+    if (!colA && colB && !countV && nonEmpty <= 3) {
+      const lbl = colB.toLowerCase();
+      if (/branded/i.test(lbl))          currentSection = 'branded';
+      else if (/fountain|beverage|bev/i.test(lbl)) currentSection = 'beverage';
+      else if (/deli/i.test(lbl))        currentSection = 'deli';
+      else                               currentSection = colB;
+    }
+    return currentSection;
+  });
+
   const rowsHTML = dataRows.map((r, dataIdx) => {
     // Sheet row number: header is at headerRowIdx+1 (1-based), data starts one after
     const sheetRow = headerRowIdx + 2 + dataIdx;
@@ -289,10 +307,11 @@ function renderCountSheet(content, raw) {
     const colB    = (r[1] || '').trim();
     const countV  = (r[countColIdx] || '').trim();
     const nonEmpty = r.filter(c => (c || '').trim()).length;
+    const secKey  = rowSections[dataIdx];
 
     // Section header row: product col empty, name col has text, no count, few cells populated
     if (!colA && colB && !countV && nonEmpty <= 3) {
-      return `<tr>
+      return `<tr data-section="${secKey}">
         <td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
       </tr>`;
     }
@@ -313,7 +332,7 @@ function renderCountSheet(content, raw) {
     const itemNum  = (r[itemNumColIdx] || '').trim();
     const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
 
-    return `<tr>${cells}${purchCell}</tr>`;
+    return `<tr data-section="${secKey}">${cells}${purchCell}</tr>`;
   }).join('');
 
   const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
@@ -328,20 +347,143 @@ function renderCountSheet(content, raw) {
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Inventory Count Sheet</span>
-        <span style="display:flex;gap:8px;align-items:center">
+        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
+          <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
       </div>
+
+      <!-- BEK Upload panel (hidden by default) -->
+      <div id="bek-upload-panel" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Upload BEK Price List (CSV)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          CSV must have columns: <code>item_num</code> and <code>price</code> (or <code>Item Number</code> / <code>Unit Price</code>).
+          Rows are upserted to the BEK price feed used for auto-fill.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="bek-file-input" accept=".csv,.txt" style="font-size:13px">
+          <button class="btn btn-primary btn-sm" id="bek-process-btn">Process &amp; Upload</button>
+          <button class="btn btn-ghost btn-sm" id="bek-cancel-btn">Cancel</button>
+        </div>
+        <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
+      <!-- Section filter tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm cs-section-btn active" data-sec="all">All Items</button>
+        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="deli">🥩 Deli</button>
+        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="branded">🍕 Branded Deli</button>
+        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="beverage">☕ Beverage Station</button>
+      </div>
+
       <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="cs-table">
           <thead><tr>${colHeaders}</tr></thead>
           <tbody>${rowsHTML}</tbody>
         </table>
       </div>
     </div>
   `;
+
+  // ── Section filter tabs ──
+  content.querySelectorAll('.cs-section-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      content.querySelectorAll('.cs-section-btn').forEach(b => {
+        b.classList.remove('active', 'btn-primary');
+        b.classList.add('btn-ghost');
+      });
+      btn.classList.add('active', 'btn-primary');
+      btn.classList.remove('btn-ghost');
+
+      const sec = btn.dataset.sec;
+      content.querySelectorAll('#cs-table tbody tr').forEach(tr => {
+        const rowSec = tr.dataset.section || 'all';
+        tr.style.display = (sec === 'all' || rowSec === sec) ? '' : 'none';
+      });
+    });
+  });
+
+  // ── BEK Upload panel ──
+  const bekUploadBtn  = content.querySelector('#bek-upload-btn');
+  const bekPanel      = content.querySelector('#bek-upload-panel');
+  const bekCancelBtn  = content.querySelector('#bek-cancel-btn');
+  const bekProcessBtn = content.querySelector('#bek-process-btn');
+  const bekFileInput  = content.querySelector('#bek-file-input');
+  const bekStatus     = content.querySelector('#bek-upload-status');
+
+  bekUploadBtn.addEventListener('click', () => { bekPanel.style.display = bekPanel.style.display === 'none' ? '' : 'none'; });
+  bekCancelBtn.addEventListener('click', () => { bekPanel.style.display = 'none'; });
+
+  bekProcessBtn.addEventListener('click', async () => {
+    const file = bekFileInput.files[0];
+    if (!file) { bekStatus.innerHTML = '<span style="color:var(--red)">Select a CSV file first.</span>'; return; }
+
+    const sbUrl = (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : '';
+    const sbKey = (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : '';
+    if (!sbUrl || !sbKey) {
+      bekStatus.innerHTML = '<span style="color:var(--red)">BEK feed not configured (add SB_URL / SB_KEY).</span>';
+      return;
+    }
+
+    bekProcessBtn.disabled = true; bekProcessBtn.textContent = 'Processing…';
+    bekStatus.innerHTML = '<span style="color:var(--muted)">Reading file…</span>';
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) throw new Error('CSV appears empty.');
+
+      // Detect delimiter
+      const delim = lines[0].includes('\t') ? '\t' : ',';
+      const rawHeaders = lines[0].split(delim).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+
+      // Find item_num and price columns flexibly
+      const numCol   = rawHeaders.findIndex(h => /item.?num|item.?#|itemnumber/i.test(h));
+      const priceCol = rawHeaders.findIndex(h => /^price$|unit.?price|each.?price|ext.?price/i.test(h));
+      if (numCol === -1 || priceCol === -1) throw new Error(`Could not find item_num / price columns. Headers found: ${rawHeaders.join(', ')}`);
+
+      const rows = lines.slice(1).map(l => {
+        const cols = l.split(delim).map(c => c.replace(/^"|"$/g, '').trim());
+        const item_num = cols[numCol];
+        const price    = parseFloat(cols[priceCol]);
+        if (!item_num || isNaN(price)) return null;
+        return { item_num, price };
+      }).filter(Boolean);
+
+      if (rows.length === 0) throw new Error('No valid rows found after parsing.');
+
+      bekStatus.innerHTML = `<span style="color:var(--muted)">Uploading ${rows.length} prices…</span>`;
+
+      // Upsert in batches of 200
+      const batch = 200;
+      for (let i = 0; i < rows.length; i += batch) {
+        const chunk = rows.slice(i, i + batch);
+        const resp = await fetch(`${sbUrl}/rest/v1/bek_prices`, {
+          method: 'POST',
+          headers: {
+            'apikey': sbKey,
+            'Authorization': `Bearer ${sbKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify(chunk),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(`Supabase error ${resp.status}: ${errText}`);
+        }
+      }
+
+      bekStatus.innerHTML = `<span style="color:var(--green)">✓ ${rows.length} BEK prices uploaded successfully.</span>`;
+      bekFileInput.value = '';
+    } catch (err) {
+      bekStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      bekProcessBtn.disabled = false; bekProcessBtn.textContent = 'Process & Upload';
+    }
+  });
 
   content.querySelectorAll('.cs-count-input').forEach(input => {
     const saveCount = async () => {
@@ -582,9 +724,28 @@ function renderDailyInvForm(content, sheetRows) {
         ${DAILY_INV_SECTIONS.map(buildSectionCard).join('')}
       </div>
 
-      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap">
         <button class="btn btn-primary" id="di-save-btn">💾 Save All Sections</button>
+        <button class="btn btn-ghost" id="di-print-form-btn">🖨 Print Form</button>
+        <button class="btn btn-ghost" id="di-pull-week-btn">📥 Pull Week for Store…</button>
         <div id="di-status" style="font-size:13px"></div>
+      </div>
+
+      <!-- Pull Week panel -->
+      <div id="di-pull-panel" style="display:none;margin-top:12px;background:var(--bg);border-radius:8px;padding:14px;border:1.5px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px">Pull Week Data from Another Store</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="di-store-select" style="padding:8px 12px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit;min-width:220px">
+            <option value="">— Select Store —</option>
+            ${Object.keys(STORES).sort((a,b)=>Number(a)-Number(b)).map(n => {
+              const s = STORES[n];
+              return `<option value="${n}">${'#'+n+(s.name?' — '+s.name:'')}</option>`;
+            }).join('')}
+          </select>
+          <button class="btn btn-primary btn-sm" id="di-pull-go-btn">Pull Week</button>
+          <button class="btn btn-ghost btn-sm" id="di-pull-cancel-btn">Cancel</button>
+        </div>
+        <div id="di-pull-status" style="margin-top:8px;font-size:13px"></div>
       </div>
     </div>
   `;
@@ -652,6 +813,180 @@ function renderDailyInvForm(content, sheetRows) {
       btn.disabled = false; btn.textContent = '💾 Save All Sections';
     }
   });
+
+  // ── Print Form (current store, current week) ──
+  content.querySelector('#di-print-form-btn').addEventListener('click', () => {
+    const diRows = [];
+    DAILY_INV_SECTIONS.forEach(sec => {
+      DAILY_INV_FIELDS.forEach(f => {
+        const vals = f.calc
+          ? DAYS.map((_, di) => calcEnding(sec.key, di))
+          : state[sec.key][f.key].slice();
+        diRows.push([weekOf, sec.key, f.key, ...vals]);
+      });
+    });
+    pullWeekPrintWindow(
+      '#' + deliState.storeNum + (deliState.storeName ? ' — ' + deliState.storeName : ''),
+      weekOf,
+      deliState.data['inventory'] || [],
+      diRows
+    );
+  });
+
+  // ── Pull Week panel ──
+  const pullWeekBtn    = content.querySelector('#di-pull-week-btn');
+  const pullPanel      = content.querySelector('#di-pull-panel');
+  const pullCancelBtn  = content.querySelector('#di-pull-cancel-btn');
+  const pullGoBtn      = content.querySelector('#di-pull-go-btn');
+  const pullSelect     = content.querySelector('#di-store-select');
+  const pullStatus     = content.querySelector('#di-pull-status');
+
+  pullWeekBtn.addEventListener('click', () => {
+    pullPanel.style.display = pullPanel.style.display === 'none' ? '' : 'none';
+  });
+  pullCancelBtn.addEventListener('click', () => { pullPanel.style.display = 'none'; });
+
+  pullGoBtn.addEventListener('click', async () => {
+    const storeNum = pullSelect.value;
+    if (!storeNum) { pullStatus.innerHTML = '<span style="color:var(--red)">Select a store.</span>'; return; }
+
+    const storeInfo = STORES[storeNum];
+    const targetSheetId = storeInfo && (storeInfo.countSheetId || storeInfo.sheetId);
+    if (!targetSheetId) { pullStatus.innerHTML = '<span style="color:var(--red)">No sheet configured for that store.</span>'; return; }
+
+    const wk = content.querySelector('#di-weekof').value || weekOf;
+    pullGoBtn.disabled = true; pullGoBtn.textContent = 'Pulling…';
+    pullStatus.innerHTML = '<span style="color:var(--muted)">Fetching count sheet…</span>';
+
+    try {
+      // Fetch count sheet
+      const countResult = await sheetsGet(deliState.sa, targetSheetId, 'A1:Z1000');
+      const countRaw = countResult.values || [];
+
+      // Fetch daily inv control
+      pullStatus.innerHTML = '<span style="color:var(--muted)">Fetching daily inv control…</span>';
+      let diRows = [];
+      try {
+        const diResult = await sheetsGet(deliState.sa, storeInfo.sheetId || targetSheetId, 'Daily Inv Control!A1:K500');
+        diRows = diResult.values || [];
+      } catch (_) { /* tab may not exist yet */ }
+
+      // Filter daily inv rows by week
+      const diForWeek = diRows.slice(1).filter(r => r[0] === wk);
+
+      // Open combined print window
+      const storeLbl = '#' + storeNum + (storeInfo.name ? ' — ' + storeInfo.name : '');
+      pullWeekPrintWindow(storeLbl, wk, countRaw, diForWeek);
+      pullStatus.innerHTML = `<span style="color:var(--green)">✓ Opened print view for ${storeLbl}</span>`;
+    } catch (err) {
+      pullStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      pullGoBtn.disabled = false; pullGoBtn.textContent = 'Pull Week';
+    }
+  });
+}
+
+function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
+  const dayLabels = getDayDates(weekOf);
+
+  // Build count table HTML (simplified text version of the count sheet)
+  let countHTML = '';
+  if (countRaw.length > 1) {
+    // find header row
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(6, countRaw.length); i++) {
+      if (countRaw[i].some(c => /count.?by|item.?#/i.test(c || ''))) { headerIdx = i; break; }
+    }
+    const hdr = countRaw[headerIdx] || [];
+    const data = countRaw.slice(headerIdx + 1);
+    const hdCells = hdr.map(h => `<th>${h||''}</th>`).join('');
+    const rows = data.map(r => {
+      if (r.every(c => !(c||'').trim())) return '';
+      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
+      if (!colA && colB) return `<tr><td colspan="${hdr.length}" class="section-hdr">${colB}</td></tr>`;
+      return `<tr>${r.map(c=>`<td>${c||''}</td>`).join('')}</tr>`;
+    }).join('');
+    countHTML = `<table><thead><tr>${hdCells}</tr></thead><tbody>${rows}</tbody></table>`;
+  } else {
+    countHTML = '<p style="color:#888">No count sheet data.</p>';
+  }
+
+  // Build daily inv control table
+  let diHTML = '';
+  if (diRows.length > 0) {
+    // Rebuild state from diRows
+    const diState = {};
+    DAILY_INV_SECTIONS.forEach(sec => {
+      diState[sec.key] = {};
+      DAILY_INV_FIELDS.forEach(f => { diState[sec.key][f.key] = Array(7).fill(''); });
+    });
+    diRows.forEach(r => {
+      const sec = r[1]; const fld = r[2];
+      if (diState[sec] && diState[sec][fld]) {
+        for (let d = 0; d < 7; d++) diState[sec][fld][d] = r[3 + d] || '';
+      }
+    });
+
+    const calcEnd = (sec, di) => {
+      const beg = parseFloat(diState[sec].beg[di])||0;
+      const pur = parseFloat(diState[sec].purchases[di])||0;
+      const ret = parseFloat(diState[sec].retail[di])||0;
+      const trn = parseFloat(diState[sec].transfers[di])||0;
+      return (beg+pur-ret+trn).toFixed(2);
+    };
+
+    diHTML = DAILY_INV_SECTIONS.map(sec => {
+      const rows = DAILY_INV_FIELDS.map(f => {
+        const vals = f.calc
+          ? DAYS.map((_,di) => calcEnd(sec.key, di))
+          : diState[sec.key][f.key];
+        return `<tr><td class="field-lbl">${f.label} ${f.hint}</td>${vals.map(v=>`<td>${v||''}</td>`).join('')}</tr>`;
+      }).join('');
+      return `
+        <div class="di-section">
+          <div class="di-sec-title" style="background:${sec.color}">${sec.label}<br><small>${sec.sub}</small></div>
+          <table>
+            <thead><tr><th>Field</th>${dayLabels.map(d=>`<th>${d}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+  } else {
+    diHTML = '<p style="color:#888">No Daily Inventory Control data for this week.</p>';
+  }
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <title>Week of ${weekOf} — ${storeLbl}</title>
+    <style>
+      body{font-family:Arial,sans-serif;font-size:11px;margin:16px;color:#111}
+      h1{font-size:16px;margin:0 0 4px} h2{font-size:13px;margin:16px 0 6px;color:#1565C0;border-bottom:2px solid #1565C0;padding-bottom:3px}
+      table{border-collapse:collapse;width:100%;margin-bottom:12px}
+      th,td{border:1px solid #ccc;padding:3px 6px;text-align:left}
+      th{background:#1565C0;color:#fff;font-size:10px}
+      .section-hdr{background:#e3f2fd;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+      .di-section{margin-bottom:20px}
+      .di-sec-title{color:#fff;font-weight:700;font-size:12px;padding:8px 12px;text-transform:uppercase;letter-spacing:.04em}
+      .di-sec-title small{font-weight:400;font-size:10px;display:block;opacity:.85}
+      .field-lbl{font-weight:600;white-space:nowrap;width:160px}
+      @media print{button{display:none}}
+    </style>
+  </head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <h1>Daily Inventory Control Form</h1>
+        <div>Store ${storeLbl} &nbsp;&middot;&nbsp; Week of ${weekOf}</div>
+      </div>
+      <button onclick="window.print()" style="padding:8px 16px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">🖨 Print</button>
+    </div>
+
+    <h2>Daily Inventory Control — All Sections</h2>
+    ${diHTML}
+
+    <h2>Item-by-Item Count Sheet</h2>
+    ${countHTML}
+  </body></html>`);
+  win.document.close();
 }
 
 function renderInventory(content, rows) {
