@@ -24,3 +24,10 @@ const SERVICE_ACCOUNT_EMAIL = 'superdeli-sa@your-project.iam.gserviceaccount.com
 // Google Drive folder ID for "Deli Pro — All Stores"
 // Get from the folder's URL: drive.google.com/drive/folders/FOLDER_ID_HERE
 const FOLDER_ID = '13XfeXxVrzPsyXOAUwIGIE2n9XhoaAeWC';
+
+// Supabase — BEK price feed
+// Get from your Supabase project: Settings → API → Project URL / anon public key
+// The coordinator runs pushBEKPricesToAllStores() (coordinator-bek-push.gs) weekly
+// to populate the bek_prices table; stores read from it when "Purch?" items are saved.
+const SB_URL = 'https://your-project.supabase.co';
+const SB_KEY = 'your-supabase-anon-public-key';

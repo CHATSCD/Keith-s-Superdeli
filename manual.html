@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keith's Superstores — Deli Pro User Manual</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue:    #1565C0;
+    --blue2:   #1A2744;
+    --sky:     #E3F2FD;
+    --green:   #1B7A3E;
+    --green-bg:#E8F5E9;
+    --amber:   #B45309;
+    --amber-bg:#FFF8E1;
+    --red:     #C62828;
+    --red-bg:  #FFEBEE;
+    --gray:    #E0E0E0;
+    --muted:   #666;
+    --text:    #1A1A1A;
+    --white:   #FFFFFF;
+    --page:    #F7F8FA;
+    --radius:  10px;
+    --shadow:  0 2px 12px rgba(0,0,0,.08);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--page);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 15px;
+  }
+
+  /* ── Cover ─────────────────────────────────────── */
+  .cover {
+    background: var(--blue2);
+    color: #fff;
+    padding: 72px 32px 80px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 60px,
+      rgba(255,255,255,.03) 60px,
+      rgba(255,255,255,.03) 61px
+    );
+  }
+  .cover-logo {
+    height: 72px;
+    width: auto;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .cover-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: #90CAF9;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 1;
+  }
+  .cover-title {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 800;
+    letter-spacing: -.01em;
+    line-height: 1.15;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 12px;
+  }
+  .cover-sub {
+    font-size: 16px;
+    color: #90CAF9;
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto 32px;
+  }
+  .cover-badges {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+  .cover-badge {
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #E3F2FD;
+  }
+
+  /* ── Layout ─────────────────────────────────────── */
+  .wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+  }
+
+  /* ── Table of Contents ──────────────────────────── */
+  .toc {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 32px;
+    margin: 36px 0;
+  }
+  .toc-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 6px 24px;
+  }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gray);
+    text-decoration: none;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 600;
+    transition: color .15s;
+  }
+  .toc-item:hover { color: var(--blue2); }
+  .toc-item .toc-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--sky);
+    color: var(--blue);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  /* ── Section ────────────────────────────────────── */
+  .section {
+    margin-top: 52px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--blue);
+  }
+  .section-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 18px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--blue2);
+    line-height: 1.2;
+  }
+  .section-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 400;
+  }
+
+  /* ── Cards ──────────────────────────────────────── */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--blue2);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon { font-size: 18px; }
+
+  /* ── Steps ──────────────────────────────────────── */
+  .steps { list-style: none; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 800;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .steps li p, .steps li { font-size: 14px; line-height: 1.6; }
+  .steps li strong { color: var(--blue2); }
+
+  /* ── Callouts ───────────────────────────────────── */
+  .callout {
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 13.5px;
+  }
+  .callout .callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .callout-tip    { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .callout-warn   { background: var(--amber-bg); border-left: 4px solid var(--amber); }
+  .callout-info   { background: var(--sky);      border-left: 4px solid var(--blue);  }
+  .callout-danger { background: var(--red-bg);   border-left: 4px solid var(--red);   }
+  .callout strong { font-weight: 700; }
+
+  /* ── Key + Button mockups ───────────────────────── */
+  .key {
+    display: inline-block;
+    background: var(--sky);
+    border: 1.5px solid #90CAF9;
+    border-radius: 5px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    font-family: monospace;
+    white-space: nowrap;
+  }
+  .btn-mock {
+    display: inline-block;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .btn-mock-sm {
+    display: inline-block;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 5px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .tab-mock {
+    display: inline-block;
+    background: var(--gray);
+    color: var(--blue2);
+    border-radius: 5px 5px 0 0;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .tab-mock.active {
+    background: var(--blue);
+    color: #fff;
+  }
+
+  /* ── Feature grid ───────────────────────────────── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .feature-card {
+    background: var(--sky);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .feature-card .feature-icon { font-size: 28px; margin-bottom: 6px; }
+  .feature-card .feature-label { font-size: 13px; font-weight: 700; color: var(--blue2); }
+  .feature-card .feature-desc  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* ── Workflow ───────────────────────────────────── */
+  .workflow {
+    display: flex;
+    gap: 0;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .workflow-step {
+    flex: 1;
+    min-width: 130px;
+    text-align: center;
+    position: relative;
+  }
+  .workflow-step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 18px;
+    font-size: 18px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .workflow-bubble {
+    width: 44px;
+    height: 44px;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin: 0 auto 8px;
+  }
+  .workflow-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--blue2);
+    line-height: 1.3;
+  }
+
+  /* ── Table ──────────────────────────────────────── */
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ref-table th {
+    background: var(--blue2);
+    color: #fff;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .ref-table td { padding: 8px 12px; border-bottom: 1px solid var(--gray); vertical-align: top; }
+  .ref-table tr:nth-child(even) td { background: var(--sky); }
+
+  /* ── Quick reference ────────────────────────────── */
+  .qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .qr-card {
+    background: var(--blue2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .qr-card .qr-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #90CAF9; margin-bottom: 8px; }
+  .qr-card .qr-item  { font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.1); display: flex; gap: 8px; }
+  .qr-card .qr-item:last-child { border-bottom: none; }
+  .qr-card .qr-item strong { color: #fff; min-width: 80px; }
+  .qr-card .qr-item span   { color: #B3CCF5; }
+
+  /* ── Divider ────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid var(--gray); margin: 32px 0; }
+
+  /* ── Footer ─────────────────────────────────────── */
+  .manual-footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    padding: 24px 0 8px;
+    border-top: 1px solid var(--gray);
+    margin-top: 64px;
+  }
+
+  /* ── Print ──────────────────────────────────────── */
+  @media print {
+    .cover { background: var(--blue2) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card  { box-shadow: none; border: 1px solid var(--gray); }
+    .section { page-break-inside: avoid; }
+  }
+
+  @media (max-width: 600px) {
+    .cover { padding: 48px 20px 56px; }
+    .toc-grid { grid-template-columns: 1fr; }
+    .workflow { gap: 8px; }
+    .workflow-step:not(:last-child)::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ COVER ═══════════ -->
+<div class="cover">
+  <img src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png"
+       alt="Keith's Superstores" class="cover-logo">
+  <div class="cover-eyebrow">Official App Guide</div>
+  <div class="cover-title">Deli Pro<br>User Manual</div>
+  <div class="cover-sub">Everything you need to know to run the app — from first login to advanced features.</div>
+  <div class="cover-badges">
+    <span class="cover-badge">🏪 Store Managers</span>
+    <span class="cover-badge">👩‍🍳 Deli Staff</span>
+    <span class="cover-badge">🗂 Coordinators</span>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <!-- ═══════════ TABLE OF CONTENTS ═══════════ -->
+  <div class="toc">
+    <div class="toc-title">What's Inside</div>
+    <div class="toc-grid">
+      <a class="toc-item" href="#getting-started"><span class="toc-num">1</span>Getting Started</a>
+      <a class="toc-item" href="#navigation"><span class="toc-num">2</span>Navigating the App</a>
+      <a class="toc-item" href="#inventory"><span class="toc-num">3</span>Inventory Count Sheet</a>
+      <a class="toc-item" href="#purch"><span class="toc-num">4</span>BEK Purchased Prices</a>
+      <a class="toc-item" href="#countlog"><span class="toc-num">5</span>Count Log</a>
+      <a class="toc-item" href="#foodcost"><span class="toc-num">6</span>Food Cost Calculator</a>
+      <a class="toc-item" href="#invoices"><span class="toc-num">7</span>Invoices</a>
+      <a class="toc-item" href="#orders"><span class="toc-num">8</span>Orders</a>
+      <a class="toc-item" href="#recipes"><span class="toc-num">9</span>Recipes</a>
+      <a class="toc-item" href="#suppliers"><span class="toc-num">10</span>Suppliers</a>
+      <a class="toc-item" href="#analytics"><span class="toc-num">11</span>Analytics</a>
+      <a class="toc-item" href="#training"><span class="toc-num">12</span>Training Materials</a>
+      <a class="toc-item" href="#inspection"><span class="toc-num">13</span>Inspection</a>
+      <a class="toc-item" href="#maintenance"><span class="toc-num">14</span>Maintenance Logs</a>
+      <a class="toc-item" href="#coordinator"><span class="toc-num">15</span>Coordinator View</a>
+      <a class="toc-item" href="#troubleshooting"><span class="toc-num">16</span>Troubleshooting</a>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       1 — GETTING STARTED
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="getting-started">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div>
+        <div class="section-title">Getting Started</div>
+        <div class="section-desc">Open the app and choose your store</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🌐</span> Opening the App</div>
+      <ol class="steps">
+        <li>On your phone or tablet, open your browser and go to the Deli Pro URL your coordinator gave you.</li>
+        <li>You'll see a <strong>store picker</strong> screen. Tap the dropdown and choose your store number and city.</li>
+        <li>Tap <span class="btn-mock">Open Store</span> — the app loads your live Google Sheet data.</li>
+        <li>Bookmark the page so you can return with one tap.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div><strong>Pro tip:</strong> On iPhone, tap the share icon → "Add to Home Screen." On Android, tap the browser menu → "Add to Home Screen." The app will behave just like a native app.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> Direct Store Link</div>
+      <p style="font-size:14px">Once you've opened your store at least once, you can bookmark the direct link which includes your store number:</p>
+      <div style="background:var(--sky);border-radius:6px;padding:12px 16px;margin-top:12px;font-family:monospace;font-size:13px;color:var(--blue2)">
+        https://yoursite.com/?store=<strong style="color:var(--blue)">127</strong>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:10px">Replace <strong>127</strong> with your store number.</p>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div><strong>What this app does:</strong> Deli Pro connects directly to your store's Google Sheet. Every count you enter, every invoice you log — it saves straight to the sheet in real time. No separate login required.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       2 — NAVIGATION
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="navigation">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div>
+        <div class="section-title">Navigating the App</div>
+        <div class="section-desc">Three main modules, nine sub-tabs</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂</span> Three Main Modules</div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🏪</div>
+          <div class="feature-label">Deli Pro</div>
+          <div class="feature-desc">Inventory, food cost, invoices, orders, recipes, suppliers, analytics, training</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <div class="feature-label">Inspection</div>
+          <div class="feature-desc">Food-safety walkthroughs with scored checklist and PDF export</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🛠</div>
+          <div class="feature-label">Maintenance Logs</div>
+          <div class="feature-desc">Shift-by-shift equipment cleaning logs for every station</div>
+        </div>
+      </div>
+      <div class="callout callout-info" style="margin-top:12px">
+        <span class="callout-icon">📱</span>
+        <div>On <strong>mobile</strong>, these appear as icons in the bottom nav bar. On <strong>tablet/desktop</strong>, they appear as tabs across the top.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> Deli Pro Sub-Tabs</div>
+      <p style="font-size:14px;margin-bottom:14px">Inside Deli Pro, a scrollable row of sub-tabs lets you jump between sections:</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+        <span class="tab-mock active">Inventory</span>
+        <span class="tab-mock">Count Log</span>
+        <span class="tab-mock">Food Cost</span>
+        <span class="tab-mock">Invoices</span>
+        <span class="tab-mock">Orders</span>
+        <span class="tab-mock">Recipes</span>
+        <span class="tab-mock">Suppliers</span>
+        <span class="tab-mock">Analytics</span>
+        <span class="tab-mock">Training</span>
+      </div>
+      <p style="font-size:13px;color:var(--muted)">Swipe the sub-tab bar left to see all tabs on narrow screens.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       3 — INVENTORY COUNT SHEET
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="inventory">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div>
+        <div class="section-title">Inventory Count Sheet</div>
+        <div class="section-desc">Enter on-hand counts for every item</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📦</span> What You'll See</div>
+      <p style="font-size:14px;margin-bottom:14px">When you tap <span class="tab-mock active">Inventory</span>, the app loads your store's count sheet directly from Google Sheets. You'll see a table with these columns:</p>
+      <table class="ref-table">
+        <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Count By</strong></td><td>The unit you're counting — CASE, EACH, BAG, etc.</td></tr>
+          <tr><td><strong>Item</strong></td><td>The full item name exactly as it appears in the BEK catalog</td></tr>
+          <tr><td><strong>Item #</strong></td><td>The BEK item number (used to match prices automatically)</td></tr>
+          <tr><td><strong>Case Pack</strong></td><td>Pack size, e.g. 2/5Lb</td></tr>
+          <tr><td><strong>On Hand</strong></td><td>✏️ <strong>This is the field you type in</strong> — your current count</td></tr>
+          <tr><td><strong>Per</strong></td><td>Cost per unit. Updates automatically when you use the Purch? feature</td></tr>
+          <tr><td><strong>Total</strong></td><td>On Hand × Per — your inventory value for that row</td></tr>
+          <tr><td><strong>📦 Purch?</strong></td><td>Check this box for any item you <em>received from BEK this week</em></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">✏️</span> How to Enter Counts</div>
+      <ol class="steps">
+        <li>Tap the <span class="tab-mock active">Inventory</span> sub-tab. The sheet loads in a few seconds.</li>
+        <li>Find the item you want to count. Items are grouped by section (blue header rows).</li>
+        <li>Tap the white number box in the <strong>On Hand</strong> column for that item.</li>
+        <li>Type your count. You can use decimals (e.g. <span class="key">2.5</span> for half a case).</li>
+        <li>Press <span class="key">Enter</span> or tap somewhere else — the app saves that one cell immediately. The border flashes green to confirm.</li>
+        <li>Repeat for all items.</li>
+        <li>When you're done, tap <span class="btn-mock">💾 Save Count &amp; Update Purchased Prices</span> to save everything at once.</li>
+      </ol>
+
+      <div class="callout callout-tip" style="margin-top:6px">
+        <span class="callout-icon">💡</span>
+        <div><strong>Save as you go, or save at the end.</strong> Each box auto-saves when you tap away from it. The "Save Count &amp; Update Purchased Prices" button saves all boxes in one shot — useful if you've been going quickly and want to make sure nothing was missed.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Don't skip items.</strong> If an item is truly out of stock, enter <span class="key">0</span> — don't leave the box blank. The analytics and food-cost calculations depend on having a real number in every row.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       4 — PURCH? / BEK PRICE UPDATE
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="purch">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div>
+        <div class="section-title">BEK Purchased Prices</div>
+        <div class="section-desc">Update costs automatically for items you received this week</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔄</span> Why This Exists</div>
+      <p style="font-size:14px">BEK (Ben E. Keith) prices change weekly. Instead of manually looking up and typing in each price, the app pulls the current cost automatically — but only for the items you actually received that week. That way you're not updating prices on items you didn't buy.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">👣</span> The Workflow — Step by Step</div>
+
+      <div class="workflow">
+        <div class="workflow-step">
+          <div class="workflow-bubble">✏️</div>
+          <div class="workflow-label">Enter<br>counts</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-bubble">☑️</div>
+          <div class="workflow-label">Check<br>Purch? boxes</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-bubble">💾</div>
+          <div class="workflow-label">Tap Save<br>button</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-bubble">✅</div>
+          <div class="workflow-label">Prices<br>updated</div>
+        </div>
+      </div>
+
+      <ol class="steps" style="margin-top:18px">
+        <li>Enter your on-hand counts as you normally would (<a href="#inventory">see Section 3</a>).</li>
+        <li>Walk through the sheet. For any item you received a BEK delivery on this week, <strong>check the 📦 Purch? checkbox</strong> at the end of that row.</li>
+        <li>When you're done checking all received items, tap <span class="btn-mock">💾 Save Count &amp; Update Purchased Prices</span>.</li>
+        <li>The app saves all your counts first, then fetches the current BEK price for each checked item, writes the new cost into the <strong>Per</strong> column, and clears all the checkboxes. Done.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div><strong>How prices get there:</strong> Your coordinator updates the BEK List in the coordinator spreadsheet once a week, then runs a script that pushes all prices to a shared price feed. When your store saves Purch? items, it reads directly from that feed — no manual entry needed on your end.</div>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>"X items not in BEK feed"</strong> — If you see this warning after saving, it means that item number wasn't found in the coordinator's price list. Ask your coordinator to add it to the BEK List tab. The count was still saved — only the price update was skipped.</div>
+    </div>
+
+    <div class="callout callout-danger">
+      <span class="callout-icon">🚫</span>
+      <div><strong>Only check Purch? for items you actually received.</strong> If you check an item you didn't buy this week, the price gets overwritten with the latest BEK price, which may not match your actual invoice cost.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       5 — COUNT LOG
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="countlog">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div>
+        <div class="section-title">Count Log</div>
+        <div class="section-desc">Record individual count entries with date, section, and flag</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📓</span> What It Does</div>
+      <p style="font-size:14px">The Count Log lets you record a timestamped count entry for any single item — with its section, category, and status flag (OK / LOW / OUT). Entries go into the <strong>COUNT HISTORY</strong> tab in your Google Sheet, building a running audit trail.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">➕</span> Logging a Count Entry</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Count Log</span>.</li>
+        <li>The <strong>Date</strong> field defaults to today — change it only if you're backdating an entry.</li>
+        <li>Choose the item from the <strong>Item</strong> dropdown (pulled from your Inventory tab).</li>
+        <li>Select the correct <strong>Section</strong> — Deli, Fountain, or Branded Deli.</li>
+        <li>Pick the <strong>Category</strong> that fits (Bread, Cheese, Deli Meat, etc.).</li>
+        <li>Type the <strong>On Hand Count</strong>.</li>
+        <li>Set the <strong>Flag</strong>:
+          <ul style="margin-top:6px;padding-left:20px;font-size:13px">
+            <li><span style="color:var(--green);font-weight:700">OK</span> — adequate stock</li>
+            <li><span style="color:var(--amber);font-weight:700">LOW</span> — getting close, reorder soon</li>
+            <li><span style="color:var(--red);font-weight:700">OUT</span> — zero stock, needs immediate attention</li>
+          </ul>
+        </li>
+        <li>Tap <span class="btn-mock">Log Count</span>.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div><strong>Load Inventory first.</strong> The item dropdown on Count Log is populated from your Inventory tab. If you open Count Log before Inventory, the dropdown may be empty. Just tap <span class="tab-mock active">Inventory</span> first, then come back.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       6 — FOOD COST
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="foodcost">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <div>
+        <div class="section-title">Food Cost Calculator</div>
+        <div class="section-desc">Track weekly food cost percentage against your 25% target</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> How Food Cost Works</div>
+      <p style="font-size:14px">Food Cost % = <strong>COGS ÷ Weekly Sales × 100</strong>. COGS is your beginning inventory value plus all purchases. The app calculates everything automatically — you just fill in the numbers.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
+        <div style="background:var(--green-bg);border-radius:8px;padding:12px 18px;text-align:center;min-width:90px">
+          <div style="font-size:22px;font-weight:800;color:var(--green)">≤25%</div>
+          <div style="font-size:11px;color:var(--green);font-weight:700;margin-top:2px">On Target ✓</div>
+        </div>
+        <div style="background:var(--amber-bg);border-radius:8px;padding:12px 18px;text-align:center;min-width:90px">
+          <div style="font-size:22px;font-weight:800;color:var(--amber)">25–30%</div>
+          <div style="font-size:11px;color:var(--amber);font-weight:700;margin-top:2px">Watch It ⚠</div>
+        </div>
+        <div style="background:var(--red-bg);border-radius:8px;padding:12px 18px;text-align:center;min-width:90px">
+          <div style="font-size:22px;font-weight:800;color:var(--red)">&gt;30%</div>
+          <div style="font-size:11px;color:var(--red);font-weight:700;margin-top:2px">Over Budget ✗</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📝</span> Logging a Weekly Entry</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Food Cost</span>.</li>
+        <li>Set the <strong>Week End Date</strong> to the Saturday of the week you're closing out.</li>
+        <li>Enter <strong>Weekly Sales ($)</strong> from your POS report.</li>
+        <li>Under <em>Beginning Inventory</em>, enter the dollar value for <strong>Deli</strong>, <strong>Fountain</strong>, and <strong>Branded Deli</strong> separately.</li>
+        <li>Under <em>Purchases</em>, enter what you spent this week on <strong>Hunt Brothers</strong>, <strong>Icee</strong>, and <strong>Ben E. Keith</strong>.</li>
+        <li><strong>COGS</strong> and <strong>Food Cost %</strong> calculate instantly — no math needed.</li>
+        <li>Add any <strong>Notes</strong> (holiday week, promotion, unusual variance).</li>
+        <li>Tap <span class="btn-mock">Save Entry</span>.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div>The top of the screen shows your <strong>8-week rolling average</strong> so you can spot trends at a glance. If you're consistently over 25%, that's a sign to review portion sizes, waste, or ordering patterns.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       7 — INVOICES
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="invoices">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <div>
+        <div class="section-title">Invoices</div>
+        <div class="section-desc">Log every received invoice in seconds</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧾</span> Logging an Invoice</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Invoices</span>.</li>
+        <li>Set the <strong>Date Received</strong> to today (or the delivery date).</li>
+        <li>Type the <strong>Vendor</strong> name (Sysco, BEK, Hunt Brothers, etc.).</li>
+        <li>Enter the <strong>Invoice #</strong> from the paper invoice.</li>
+        <li>Enter the <strong>Amount ($)</strong> — the invoice total.</li>
+        <li>In <strong>Items / Description</strong>, briefly note what was delivered (a short description is fine).</li>
+        <li>Use <strong>Notes</strong> for any issues: substitutions, shortages, damaged goods.</li>
+        <li>Tap <span class="btn-mock">Log Invoice</span>.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div>The header shows a <strong>This Month</strong> running total — a quick check to make sure your spending is tracking to budget before the month closes.</div>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Log invoices the day they arrive.</strong> Waiting until the end of the week means details get fuzzy — what was substituted, what was short, etc. Two minutes when the driver hands you the invoice saves headaches later.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       8 — ORDERS
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="orders">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <div>
+        <div class="section-title">Orders</div>
+        <div class="section-desc">Track pending and placed orders</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> Placing or Logging an Order</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Orders</span>.</li>
+        <li>Fill in <strong>Date</strong>, <strong>Vendor</strong>, <strong>Item</strong>, <strong>Unit</strong>, and <strong>Quantity</strong>.</li>
+        <li>Set the <strong>Status</strong>:
+          <ul style="margin-top:6px;padding-left:20px;font-size:13px;line-height:2">
+            <li><strong>Pending</strong> — you know you need it, haven't called yet</li>
+            <li><strong>Ordered</strong> — the order is placed</li>
+            <li><strong>Received</strong> — delivery confirmed</li>
+            <li><strong>Cancelled</strong> — order was cancelled</li>
+            <li><strong>Back-Order</strong> — vendor is out of stock</li>
+          </ul>
+        </li>
+        <li>Add any <strong>Notes</strong> (special handling, substitution instructions).</li>
+        <li>Tap <span class="btn-mock">Save Order</span>.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div>Open orders (Pending, Ordered, Back-Order) appear in their own <strong>Open Orders</strong> card at the top of the list so nothing slips through the cracks.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       9 — RECIPES
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="recipes">
+    <div class="section-header">
+      <div class="section-num">9</div>
+      <div>
+        <div class="section-title">Recipes</div>
+        <div class="section-desc">Build recipe costing sheets — cost per serving, total cost</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">👨‍🍳</span> Adding a Recipe Ingredient</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Recipes</span>, then tap <span class="btn-mock-sm">+ Add</span>.</li>
+        <li>Type the <strong>Recipe Name</strong> (e.g. <em>Club Sandwich</em>). Use the same name for every ingredient in one recipe — they group together automatically.</li>
+        <li>Choose the <strong>Category</strong> (Sandwiches, Hot Foods, etc.).</li>
+        <li>Enter the <strong>Servings / Yield</strong> for this recipe (e.g. <em>10</em> sandwiches from one batch).</li>
+        <li>Enter one <strong>Ingredient</strong> name, <strong>Quantity</strong>, and <strong>Unit</strong>.</li>
+        <li>Enter the <strong>Cost per Unit</strong> — the <strong>Ext. Cost</strong> calculates automatically.</li>
+        <li>Tap <span class="btn-mock">Save Ingredient</span>. Repeat for each ingredient.</li>
+      </ol>
+      <p style="font-size:13px;color:var(--muted);margin-top:14px">Once you've added all ingredients, the recipe card shows <strong>Total Cost</strong> and <strong>Cost per Serving</strong> automatically.</p>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div>Recipe costing pays off when your food cost % creeps up. If your Club Sandwich was costing $1.80/serving last quarter and it's now $2.20, you know it's time to review your pricing or portion sizes.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       10 — SUPPLIERS
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="suppliers">
+    <div class="section-header">
+      <div class="section-num">10</div>
+      <div>
+        <div class="section-title">Suppliers</div>
+        <div class="section-desc">Your vendor contact directory</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📞</span> Adding a Supplier</div>
+      <ol class="steps">
+        <li>Tap <span class="tab-mock active">Suppliers</span>, then tap <span class="btn-mock-sm">+ Add Supplier</span>.</li>
+        <li>Enter the <strong>Supplier Name</strong>, <strong>Rep Name</strong>, <strong>Phone</strong>, and <strong>Email</strong>.</li>
+        <li>Set the <strong>Delivery Day</strong> from the dropdown.</li>
+        <li>Add any <strong>Notes</strong> (minimum orders, lead times, special items they carry).</li>
+        <li>Tap <span class="btn-mock">Save Supplier</span>.</li>
+      </ol>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px">Phone numbers and email addresses in the list are <strong>tappable</strong> — tap a phone number to call, tap an email to send a message.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       11 — ANALYTICS
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="analytics">
+    <div class="section-header">
+      <div class="section-num">11</div>
+      <div>
+        <div class="section-title">Analytics</div>
+        <div class="section-desc">Your store's performance at a glance</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📈</span> What You'll See</div>
+      <p style="font-size:14px;margin-bottom:14px">Analytics rolls up all your data into four key numbers and two charts:</p>
+      <table class="ref-table">
+        <thead><tr><th>Metric</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>4-Wk Avg Food Cost %</strong></td><td>Your rolling food cost — target is 25% or below</td></tr>
+          <tr><td><strong>Low Stock Items</strong></td><td>Items at or below reorder threshold</td></tr>
+          <tr><td><strong>Pending Orders</strong></td><td>How many orders are still open / not received</td></tr>
+          <tr><td><strong>Invoices Logged</strong></td><td>Total number of invoices on record</td></tr>
+          <tr><td><strong>Food Cost Trend Chart</strong></td><td>Bar chart of last 8 weekly entries — green is good, red is over budget</td></tr>
+          <tr><td><strong>Top Vendors by Spend</strong></td><td>Which vendors you're spending the most with</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div><strong>Analytics is session-based.</strong> Navigate to each sub-tab first (Inventory, Food Cost, Invoices, Orders), then come to Analytics. The charts update based on data loaded during your current session.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       12 — TRAINING
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="training">
+    <div class="section-header">
+      <div class="section-num">12</div>
+      <div>
+        <div class="section-title">Training Materials</div>
+        <div class="section-desc">Spaceman 6235-C cleaning and certification documents</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🍦</span> Available Documents</div>
+      <table class="ref-table">
+        <thead><tr><th>Document</th><th>Who uses it</th></tr></thead>
+        <tbody>
+          <tr><td>📓 <strong>Student Workbook</strong></td><td>New staff working through Spaceman 6235-C cleaning for the first time</td></tr>
+          <tr><td>📝 <strong>Student Test</strong></td><td>Assessment to verify the trainee can clean the machine correctly</td></tr>
+          <tr><td>📋 <strong>Instructor Manual</strong></td><td>Manager or trainer running the certification session</td></tr>
+          <tr><td>🗺️ <strong>Quick Reference Guide</strong></td><td>Trained staff who just need a quick reminder</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted);margin-top:14px">Tap any document to open it in Google Drive. Documents work on any device.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       13 — INSPECTION
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="inspection">
+    <div class="section-header">
+      <div class="section-num">13</div>
+      <div>
+        <div class="section-title">Inspection</div>
+        <div class="section-desc">Complete a scored food-safety walkthrough</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">✅</span> Running an Inspection</div>
+      <ol class="steps">
+        <li>Tap the <strong>Inspect</strong> module (bottom nav or top tab).</li>
+        <li>Work through each section — <strong>Storerooms, Refrigerator, Freezers, Inventory, Pizza Station, 3-Compartment Sink,</strong> and more.</li>
+        <li>For each checklist item, tap:
+          <ul style="margin-top:6px;padding-left:20px;font-size:13px;line-height:2">
+            <li><span style="background:#E8F5E9;color:var(--green);padding:1px 8px;border-radius:4px;font-weight:700">YES</span> — compliant</li>
+            <li><span style="background:#FFEBEE;color:var(--red);padding:1px 8px;border-radius:4px;font-weight:700">NO</span> — not compliant (counts against your score)</li>
+            <li><span style="background:#F5F5F5;color:var(--muted);padding:1px 8px;border-radius:4px;font-weight:700">N/A</span> — not applicable today</li>
+          </ul>
+        </li>
+        <li>When all sections are done, review your <strong>score</strong> and fill in the <strong>Inspector name</strong>, <strong>Follow-up Date</strong>, and any <strong>Notes</strong>.</li>
+        <li>Tap <span class="btn-mock">Save Inspection</span> — it writes to your Google Sheet's Inspections tab.</li>
+        <li>Optionally tap <span class="btn-mock">Export PDF</span> to save or share a formatted report.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> Inspection Sections Covered</div>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="feature-icon">🏠</div><div class="feature-label">Storerooms</div></div>
+        <div class="feature-card"><div class="feature-icon">❄️</div><div class="feature-label">Refrigerator</div></div>
+        <div class="feature-card"><div class="feature-icon">🧊</div><div class="feature-label">Freezers</div></div>
+        <div class="feature-card"><div class="feature-icon">📦</div><div class="feature-label">Inventory</div></div>
+        <div class="feature-card"><div class="feature-icon">🍕</div><div class="feature-label">Pizza Station</div></div>
+        <div class="feature-card"><div class="feature-icon">🚿</div><div class="feature-label">3-Comp Sink</div></div>
+        <div class="feature-card"><div class="feature-icon">🍦</div><div class="feature-label">Ice Cream</div></div>
+        <div class="feature-card"><div class="feature-icon">🧹</div><div class="feature-label">General Cleaning</div></div>
+      </div>
+    </div>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>Every NO counts.</strong> Each "NO" answer lowers your score. Before tapping NO, correct the issue right then if it takes less than 2 minutes. Inspections with many NOs trigger a coordinator follow-up.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       14 — MAINTENANCE LOGS
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="maintenance">
+    <div class="section-header">
+      <div class="section-num">14</div>
+      <div>
+        <div class="section-title">Maintenance Logs</div>
+        <div class="section-desc">Shift-by-shift equipment cleaning records</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🛠</span> Equipment Covered</div>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="feature-icon">🍦</div><div class="feature-label">Ice Cream Machine</div><div class="feature-desc">Shift check + weekly deep clean</div></div>
+        <div class="feature-card"><div class="feature-icon">🥐</div><div class="feature-label">Bakery Case</div><div class="feature-desc">Daily + weekly tasks</div></div>
+        <div class="feature-card"><div class="feature-icon">🥨</div><div class="feature-label">Pretzel Warmer</div><div class="feature-desc">Daily cleaning checklist</div></div>
+        <div class="feature-card"><div class="feature-icon">🌭</div><div class="feature-label">Hot Dog Roller</div><div class="feature-desc">Per-shift + daily log</div></div>
+        <div class="feature-card"><div class="feature-icon">🍗</div><div class="feature-label">Hot Case / Chicken</div><div class="feature-desc">Temperature + cleaning</div></div>
+        <div class="feature-card"><div class="feature-icon">☕</div><div class="feature-label">Coffee Station</div><div class="feature-desc">Hourly + end-of-day</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📝</span> Completing a Log</div>
+      <ol class="steps">
+        <li>Tap the <strong>Maintenance</strong> module.</li>
+        <li>Choose the piece of equipment from the list.</li>
+        <li>Work through the checklist — tap each task to mark it complete.</li>
+        <li>Fill in any temperature or PPM readings if required.</li>
+        <li>Enter your <strong>initials</strong> and confirm the <strong>date and time</strong>.</li>
+        <li>Tap <span class="btn-mock">Submit Log</span>.</li>
+      </ol>
+    </div>
+
+    <div class="callout callout-danger">
+      <span class="callout-icon">🚫</span>
+      <div><strong>Do not skip temperature logs.</strong> Refrigerator must read 41°F or below. Freezer must read 0°F or below. Ice cream machine hot-gas cycle must be performed weekly. These are health-code requirements, not suggestions.</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       15 — COORDINATOR VIEW
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="coordinator">
+    <div class="section-header">
+      <div class="section-num">15</div>
+      <div>
+        <div class="section-title">Coordinator View</div>
+        <div class="section-desc">Chain-wide dashboard — managers only</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂</span> Accessing the Coordinator Dashboard</div>
+      <p style="font-size:14px;margin-bottom:12px">The Coordinator view is a separate screen for the Food &amp; Beverage Coordinator. It shows every store's inspection status and food cost in one table.</p>
+      <div style="background:var(--sky);border-radius:6px;padding:12px 16px;font-family:monospace;font-size:13px;color:var(--blue2)">
+        https://yoursite.com/?view=coordinator
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:10px">Or tap the "🗂 Coordinator View" link at the bottom of the store picker screen.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> What the Dashboard Shows</div>
+      <table class="ref-table">
+        <thead><tr><th>Feature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Inspection Summary</strong></td><td>Every store's last inspection date, score, number of NOs, follow-up due date, and status (Clear / Pending / Overdue)</td></tr>
+          <tr><td><strong>Follow-up Alerts</strong></td><td>Stores with follow-up due within 3 days — shown in a red banner at the top</td></tr>
+          <tr><td><strong>Filter Bar</strong></td><td>Filter by status, minimum score %, or search by store number / city</td></tr>
+          <tr><td><strong>Food Cost Summary</strong></td><td>Current food cost % pulled live from each store's sheet</td></tr>
+          <tr><td><strong>Export Report PDF</strong></td><td>One-tap chain-wide inspection PDF for your records</td></tr>
+          <tr><td><strong>Backup All Stores</strong></td><td>Creates a dated snapshot of every store's Inventory tab — keeps the last 4 weekly backups</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">💰</span> Updating BEK Prices (Coordinator Only)</div>
+      <ol class="steps">
+        <li>Open the <strong>Coordinator spreadsheet</strong> in Google Sheets.</li>
+        <li>Go to the <span class="tab-mock active">BEK List</span> tab and update item prices for this week.</li>
+        <li>Open <strong>Extensions → Apps Script</strong> and run <strong>pushBEKPricesToAllStores()</strong>.</li>
+        <li>The script pushes all prices to the shared feed. All 43 stores will pull current prices automatically when their staff saves Purch? items.</li>
+      </ol>
+      <div class="callout callout-tip" style="margin-top:6px">
+        <span class="callout-icon">💡</span>
+        <div>Set a <strong>weekly trigger</strong> in Apps Script (Triggers → Time-driven → Week → Monday morning) so this runs automatically without you having to remember.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════
+       16 — TROUBLESHOOTING
+  ═══════════════════════════════════════════ -->
+  <div class="section" id="troubleshooting">
+    <div class="section-header">
+      <div class="section-num">16</div>
+      <div>
+        <div class="section-title">Troubleshooting</div>
+        <div class="section-desc">When something doesn't look right</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔧</span> Common Issues</div>
+      <table class="ref-table">
+        <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Inventory tab is empty</strong></td>
+            <td>Your store's Google Sheet hasn't been shared with the service account. Contact your coordinator — they need to share the sheet with the app's service account email.</td>
+          </tr>
+          <tr>
+            <td><strong>"Could not load data from Google Sheets"</strong></td>
+            <td>Check your internet connection. If it's good, the Sheets API may be rate-limited — wait 30 seconds and try again. If the error persists, contact your coordinator.</td>
+          </tr>
+          <tr>
+            <td><strong>The save button border turns red</strong></td>
+            <td>The individual count save failed. Try tapping away from the cell and back again. If still failing, use "Save Count &amp; Update Purchased Prices" to save all at once.</td>
+          </tr>
+          <tr>
+            <td><strong>"BEK price feed not configured"</strong></td>
+            <td>The Supabase credentials haven't been added to <code>serviceAccount.js</code>. Ask whoever manages the app deployment to add SB_URL and SB_KEY.</td>
+          </tr>
+          <tr>
+            <td><strong>"X items not in BEK feed"</strong></td>
+            <td>Those item numbers aren't in the coordinator's BEK List tab. Ask the coordinator to add them. Counts were still saved — only the price update was skipped.</td>
+          </tr>
+          <tr>
+            <td><strong>Count Log item dropdown is empty</strong></td>
+            <td>Navigate to the Inventory tab first (it loads the item list). Then come back to Count Log.</td>
+          </tr>
+          <tr>
+            <td><strong>Analytics shows no data</strong></td>
+            <td>Visit Inventory, Food Cost, Invoices, and Orders tabs first, then return to Analytics. It only shows data loaded in the current session.</td>
+          </tr>
+          <tr>
+            <td><strong>Store picker doesn't show my store</strong></td>
+            <td>Your store number may not be in the app's store list yet. Contact your coordinator — they'll need to add it to <code>stores.js</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>App shows "Setup Required"</strong></td>
+            <td>The Google Service Account credentials aren't configured. This is a deployment issue — contact whoever manages the Vercel hosting.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📡</span> App Doesn't Need the Internet — Except to Save</div>
+      <p style="font-size:14px">You can type counts into the boxes without a connection — but nothing saves to the sheet until you're online. If you're in a dead zone, complete your counts and wait until you have signal before tapping Save.</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════
+       QUICK REFERENCE CARD
+  ═══════════════════════════════════════════ -->
+  <div style="margin-top:40px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:16px">Quick Reference Card — Print &amp; Post</div>
+    <div class="qr-grid">
+
+      <div class="qr-card">
+        <div class="qr-label">Daily Tasks</div>
+        <div class="qr-item"><strong>Counts</strong><span>Inventory tab → type On Hand</span></div>
+        <div class="qr-item"><strong>BEK items</strong><span>Check Purch? → Save button</span></div>
+        <div class="qr-item"><strong>Invoices</strong><span>Log same day as delivery</span></div>
+        <div class="qr-item"><strong>Maint log</strong><span>Complete per shift</span></div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">Weekly Tasks</div>
+        <div class="qr-item"><strong>Food Cost</strong><span>Enter after weekly POS close</span></div>
+        <div class="qr-item"><strong>Orders</strong><span>Review open orders tab</span></div>
+        <div class="qr-item"><strong>Inspection</strong><span>Complete full walkthrough</span></div>
+        <div class="qr-item"><strong>BEK prices</strong><span>Coordinator pushes Monday</span></div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">Food Cost Targets</div>
+        <div class="qr-item"><strong>✓ Great</strong><span>Below 25%</span></div>
+        <div class="qr-item"><strong>⚠ Watch</strong><span>25% – 30%</span></div>
+        <div class="qr-item"><strong>✗ Over</strong><span>Above 30%</span></div>
+        <div class="qr-item"><strong>Target</strong><span>25% or below</span></div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">Key Temps</div>
+        <div class="qr-item"><strong>Refrigerator</strong><span>41°F or below</span></div>
+        <div class="qr-item"><strong>Freezer</strong><span>0°F or below</span></div>
+        <div class="qr-item"><strong>Hot hold</strong><span>140°F or above</span></div>
+        <div class="qr-item"><strong>Ice cream</strong><span>Weekly deep clean</span></div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">Order Statuses</div>
+        <div class="qr-item"><strong>Pending</strong><span>Need to call</span></div>
+        <div class="qr-item"><strong>Ordered</strong><span>Called in, waiting</span></div>
+        <div class="qr-item"><strong>Received</strong><span>Delivered ✓</span></div>
+        <div class="qr-item"><strong>Back-Order</strong><span>Vendor is out</span></div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">Inventory Flags</div>
+        <div class="qr-item"><strong style="color:#81C784">OK</strong><span>Adequate stock</span></div>
+        <div class="qr-item"><strong style="color:#FFD54F">LOW</strong><span>Reorder soon</span></div>
+        <div class="qr-item"><strong style="color:#EF9A9A">OUT</strong><span>Zero stock — urgent</span></div>
+        <div class="qr-item"><strong>0</strong><span>Always enter 0 for out-of-stock</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="manual-footer">
+    Licensed to Keith's Superstores &nbsp;·&nbsp; Deli Pro User Manual &nbsp;·&nbsp; © 2026 S.C.D. All Rights Reserved
+  </div>
+
+</div><!-- /wrapper -->
+</body>
+</html>
