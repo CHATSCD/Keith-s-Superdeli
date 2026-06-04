@@ -3,6 +3,7 @@
 // All backed by Google Sheets tabs via sheetsApi.js.
 
 const DELI_TABS = {
+  dailyinv:  { label: 'Daily Inv. Form', tab: 'Daily Inv Control', headers: ['Week Of','Section','Field','Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
   inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
   countlog:  { label: 'Count Log',  tab: 'COUNT HISTORY',       headers: ['Date','Item #','Section','Category','Item Name','On Hand','Flag'] },
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
@@ -76,6 +77,11 @@ async function switchDeliTab(container, tabId) {
   const content = container.querySelector('#deli-content');
   if (!content) return;
 
+  if (tabId === 'dailyinv') {
+    renderDailyInvForm(content);
+    return;
+  }
+
   if (tabId === 'analytics') {
     renderAnalytics(content);
     return;
@@ -145,6 +151,7 @@ async function switchDeliTab(container, tabId) {
   }
 
   switch (tabId) {
+    case 'dailyinv':  renderDailyInvForm(content, deliState.data[tabId]); break;
     case 'inventory': renderCountSheet(content, deliState.data[tabId]); break;
     case 'countlog':  renderCountLog(content,  deliState.data[tabId]); break;
     case 'foodcost':  renderFoodCost(content,  deliState.data[tabId]); break;
@@ -411,6 +418,238 @@ function renderCountSheet(content, raw) {
     } finally {
       saveAllBtn.disabled = false;
       saveAllBtn.textContent = '💾 Save Count & Update Purchased Prices';
+    }
+  });
+}
+
+// ════════════════════════════════════════
+// DAILY INVENTORY CONTROL FORM
+// ════════════════════════════════════════
+
+const DAILY_INV_SECTIONS = [
+  {
+    key:   'deli',
+    label: 'Deli Inventory at Cost',
+    sub:   'Hot Deli, Hotdog, Chili Cheese, Peanut Patch',
+    color: '#1565C0',
+  },
+  {
+    key:   'branded',
+    label: 'Branded Deli Inventory at Cost',
+    sub:   'Hunt Brothers, Piccadilly Pizza',
+    color: '#6A1B9A',
+  },
+  {
+    key:   'beverage',
+    label: 'Beverage Station Inventory at Cost',
+    sub:   'Coffee, Cappuccino, Fountain Drinks, BIBs, Frozen Drinks, Tea',
+    color: '#00695C',
+  },
+];
+
+const DAILY_INV_FIELDS = [
+  { key: 'beg',       label: 'Beginning Inv.',       hint: '$',    calc: false },
+  { key: 'purchases', label: 'Purchases',             hint: '(+)',  calc: false },
+  { key: 'retail',    label: '% of Retail Sales',     hint: '(−)',  calc: false },
+  { key: 'transfers', label: 'Transfers',              hint: '(+/−)',calc: false },
+  { key: 'end',       label: 'Ending Inv.',            hint: '',     calc: true  },
+];
+
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function getDayDates(weekOf) {
+  if (!weekOf) return DAYS.map(d => d);
+  const base = new Date(weekOf + 'T00:00:00');
+  return DAYS.map((d, i) => {
+    const dt = new Date(base);
+    dt.setDate(base.getDate() + i);
+    return `${d} ${dt.getMonth()+1}/${dt.getDate()}`;
+  });
+}
+
+function renderDailyInvForm(content, sheetRows) {
+  // Build an in-memory state map: state[sectionKey][fieldKey][dayIdx] = value
+  const state = {};
+  DAILY_INV_SECTIONS.forEach(sec => {
+    state[sec.key] = {};
+    DAILY_INV_FIELDS.forEach(f => { state[sec.key][f.key] = Array(7).fill(''); });
+  });
+
+  // Parse sheet rows if provided
+  // Row format: [weekOf, sectionKey, fieldKey, sun, mon, tue, wed, thu, fri, sat]
+  let weekOf = '';
+  if (sheetRows && sheetRows.length > 1) {
+    for (const row of sheetRows.slice(1)) {
+      if (!weekOf && row[0]) weekOf = row[0];
+      const sec = row[1]; const fld = row[2];
+      if (state[sec] && state[sec][fld]) {
+        for (let d = 0; d < 7; d++) state[sec][fld][d] = row[3 + d] || '';
+      }
+    }
+  }
+
+  // Default week-of to most recent Sunday
+  if (!weekOf) {
+    const today = new Date();
+    const sun = new Date(today);
+    sun.setDate(today.getDate() - today.getDay());
+    weekOf = sun.toISOString().split('T')[0];
+  }
+
+  const dayLabels = getDayDates(weekOf);
+
+  function calcEnding(sec, dayIdx) {
+    const beg  = parseFloat(state[sec].beg[dayIdx])       || 0;
+    const pur  = parseFloat(state[sec].purchases[dayIdx]) || 0;
+    const ret  = parseFloat(state[sec].retail[dayIdx])    || 0;
+    const trn  = parseFloat(state[sec].transfers[dayIdx]) || 0;
+    return (beg + pur - ret + trn).toFixed(2);
+  }
+
+  function buildSectionCard(sec) {
+    const rows = DAILY_INV_FIELDS.map(f => {
+      const isCalc = f.calc;
+      const cells = DAYS.map((_, di) => {
+        if (isCalc) {
+          return `<td style="padding:3px 4px;text-align:center">
+            <span class="di-end" data-sec="${sec.key}" data-day="${di}" style="
+              display:inline-block;min-width:72px;font-weight:700;font-size:13px;
+              color:${sec.color};text-align:center
+            ">${calcEnding(sec.key, di)}</span>
+          </td>`;
+        }
+        return `<td style="padding:3px 4px">
+          <input type="number" class="di-input" step="0.01" min="0"
+            data-sec="${sec.key}" data-field="${f.key}" data-day="${di}"
+            value="${state[sec.key][f.key][di]}"
+            style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;
+                   font-size:13px;text-align:center;background:var(--white)">
+        </td>`;
+      }).join('');
+
+      return `<tr>
+        <td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;min-width:140px">
+          ${f.label} <span style="color:var(--muted);font-weight:400">${f.hint}</span>
+        </td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    const dayHeaders = dayLabels.map(d =>
+      `<th style="min-width:80px;text-align:center;font-size:11px">${d}</th>`
+    ).join('');
+
+    return `
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title" style="background:${sec.color};color:#fff;border-radius:var(--radius) var(--radius) 0 0;margin:-16px -16px 12px;padding:12px 16px">
+          <div style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${sec.label}</div>
+          <div style="font-size:11px;font-weight:400;opacity:.85;margin-top:2px">${sec.sub}</div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" style="min-width:680px">
+            <thead><tr>
+              <th style="min-width:140px">Field</th>
+              ${dayHeaders}
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  content.innerHTML = `
+    <div style="max-width:900px">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span>Daily Inventory Control Form</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label style="font-size:12px;font-weight:600;color:var(--muted)">Week of (Sunday):</label>
+            <input type="date" id="di-weekof" value="${weekOf}"
+              style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit">
+            <button class="btn btn-ghost btn-sm" id="di-load-btn">Load Week</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted)">
+          Store #${deliState.storeNum} &mdash; ${deliState.storeName || ''}
+          &nbsp;&middot;&nbsp; Ending Inv = Beg Inv + Purchases &minus; % of Retail Sales ± Transfers
+        </div>
+      </div>
+
+      <div id="di-sections">
+        ${DAILY_INV_SECTIONS.map(buildSectionCard).join('')}
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+        <button class="btn btn-primary" id="di-save-btn">💾 Save All Sections</button>
+        <div id="di-status" style="font-size:13px"></div>
+      </div>
+    </div>
+  `;
+
+  // Re-render on week change
+  content.querySelector('#di-load-btn').addEventListener('click', () => {
+    const newWeek = content.querySelector('#di-weekof').value;
+    if (newWeek) {
+      // reset state for new week
+      DAILY_INV_SECTIONS.forEach(sec => {
+        DAILY_INV_FIELDS.forEach(f => { state[sec.key][f.key] = Array(7).fill(''); });
+      });
+      weekOf = newWeek;
+      renderDailyInvForm(content, null);
+    }
+  });
+
+  // Live ending-inv recalc on input
+  content.querySelector('#di-sections').addEventListener('input', e => {
+    const inp = e.target.closest('.di-input');
+    if (!inp) return;
+    const sec = inp.dataset.sec;
+    const fld = inp.dataset.field;
+    const di  = parseInt(inp.dataset.day, 10);
+    state[sec][fld][di] = inp.value;
+
+    const endSpan = content.querySelector(`.di-end[data-sec="${sec}"][data-day="${di}"]`);
+    if (endSpan) endSpan.textContent = calcEnding(sec, di);
+  });
+
+  // Save to Google Sheets
+  content.querySelector('#di-save-btn').addEventListener('click', async () => {
+    const btn      = content.querySelector('#di-save-btn');
+    const statusEl = content.querySelector('#di-status');
+    if (!deliState.sheetId) {
+      statusEl.innerHTML = '<span style="color:var(--red)">No sheet ID configured.</span>';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Saving…'; statusEl.textContent = '';
+
+    try {
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Daily Inv Control', DELI_TABS.dailyinv.headers);
+
+      // Collect current ending values from DOM
+      const rows = [];
+      DAILY_INV_SECTIONS.forEach(sec => {
+        DAILY_INV_FIELDS.forEach(f => {
+          let dayVals;
+          if (f.calc) {
+            dayVals = DAYS.map((_, di) => calcEnding(sec.key, di));
+          } else {
+            dayVals = state[sec.key][f.key].slice();
+          }
+          rows.push([weekOf, sec.key, f.key, ...dayVals]);
+        });
+      });
+
+      // Clear existing rows for this week, then append fresh rows
+      // Simple approach: just append (sheet will accumulate history by week)
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Daily Inv Control!A1', rows);
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Saved successfully.</span>';
+    } catch (err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Save All Sections';
     }
   });
 }
