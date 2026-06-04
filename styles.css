@@ -935,3 +935,14 @@ body {
 .stat-pill-value.green { color: var(--green); }
 .stat-pill-value.red   { color: var(--red); }
 .stat-pill-value.amber { color: var(--amber); }
+
+/* === Maintenance Sub‑Tab Visibility Fix === */
+.maintenance-sub-btn {
+  color: var(--ks-blue2);
+  border-color: var(--ks-blue2);
+}
+
+.maintenance-sub-btn.active {
+  background: var(--ks-blue);
+  color: #fff;
+}
