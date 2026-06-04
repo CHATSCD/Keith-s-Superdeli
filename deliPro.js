@@ -253,9 +253,11 @@ function renderCountSheetSections(content, sections) {
       const sheetRow = (headerRowIdx || 0) + 2 + dataIdx;
       const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
       const countV = (r[countColIdx]||'').trim();
+      const itemNumV = (r[itemNumColIdx]||'').trim();
       const nonEmpty = r.filter(c=>(c||'').trim()).length;
 
-      if (!colA && colB && !countV && nonEmpty <= 3) {
+      // Only treat as a section-group header if there is NO item number — real items always have one
+      if (!colA && colB && !countV && !itemNumV && nonEmpty <= 2) {
         return `<tr><td colspan="${numCols+1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
       }
 
