@@ -134,7 +134,12 @@ async function switchDeliTab(container, tabId) {
     const combined = [].concat(...sections.map(s => s.rows.slice(1)));
     deliState.data['inventory'] = [['Count By','Item','Item#','Case Pack','On Hand','Per','Total'], ...combined];
 
-    renderCountSheetSections(content, sections);
+    try {
+      renderCountSheetSections(content, sections);
+    } catch(err) {
+      content.innerHTML = `<div class="card"><div class="banner banner-warn"><div class="banner-icon">⚠</div><div>Inventory render error: ${err.message}<br><pre style="font-size:11px;margin-top:8px;white-space:pre-wrap">${err.stack||''}</pre></div></div>
+      <div style="padding:12px;font-size:12px;color:var(--muted)">Section row counts: ${sections.map(s=>s.tabName+': '+s.rows.length).join(', ')}</div></div>`;
+    }
     return;
   }
 
@@ -283,7 +288,7 @@ function renderCountSheetSections(content, sections) {
       return `<tr>${cells}${purchCell}</tr>`;
     }).join('');
 
-    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab.<br><small style="color:var(--muted)">Create a tab named exactly "${sec.tabName}" in this store's Google Sheet.</small></td></tr>`;
+    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small></td></tr>`;
 
     return { colHdrs, rowsHTML: rowsHTML || emptyMsg, outCnt };
   }
