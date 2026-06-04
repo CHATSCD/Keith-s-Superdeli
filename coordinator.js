@@ -8,6 +8,130 @@ async function coordinatorInit(container, serviceAccount) {
   document.getElementById('backup-all-btn')?.addEventListener('click', () => {
     backupAllStores(serviceAccount);
   });
+
+  // ── Orders ──
+  const orderStoreEl  = document.getElementById('coord-order-store');
+  const ordersWrap    = document.getElementById('coord-orders-wrap');
+  const newOrderForm  = document.getElementById('coord-new-order-form');
+
+  document.getElementById('coord-new-order-btn')?.addEventListener('click', () => {
+    newOrderForm.style.display = newOrderForm.style.display === 'none' ? '' : 'none';
+    const d = new Date().toISOString().split('T')[0];
+    document.getElementById('co-date').value = d;
+  });
+  document.getElementById('co-cancel-btn')?.addEventListener('click', () => { newOrderForm.style.display = 'none'; });
+
+  document.getElementById('coord-load-orders-btn')?.addEventListener('click', async () => {
+    const storeNum = orderStoreEl?.value;
+    if (!storeNum) { ordersWrap.innerHTML = '<p style="color:var(--red);font-size:13px">Select a store first.</p>'; return; }
+    const sheetId = (typeof STORES !== 'undefined' && STORES[storeNum]) ? (STORES[storeNum].sheetId) : '';
+    if (!sheetId) { ordersWrap.innerHTML = '<p style="color:var(--red);font-size:13px">No sheet configured for that store.</p>'; return; }
+    ordersWrap.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Loading…</p></div>';
+    try {
+      const res  = await sheetsGet(serviceAccount, sheetId, 'Orders!A1:G500');
+      const rows = (res.values || []).slice(1).reverse().slice(0, 60);
+      const html = rows.map(r => `<tr>
+        <td>${r[0]||''}</td><td style="font-weight:600">${r[1]||''}</td><td>${r[2]||''}</td>
+        <td>${r[3]||''}</td><td style="text-align:center">${r[4]||''}</td>
+        <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;
+          background:${r[5]==='Received'?'var(--green)':r[5]==='Cancelled'?'var(--red)':'var(--ks-blue)'};color:#fff">${r[5]||''}</span></td>
+        <td style="font-size:12px;color:var(--muted)">${r[6]||''}</td>
+      </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No orders yet.</td></tr>';
+      ordersWrap.innerHTML = `<table class="data-table"><thead><tr>
+        <th>Date</th><th>Vendor</th><th>Item</th><th>Unit</th><th>Qty</th><th>Status</th><th>Notes</th>
+      </tr></thead><tbody>${html}</tbody></table>`;
+    } catch (err) {
+      ordersWrap.innerHTML = `<p style="color:var(--red);font-size:13px">Error: ${err.message}</p>`;
+    }
+  });
+
+  document.getElementById('co-save-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('co-save-btn');
+    const msg = document.getElementById('co-status-msg');
+    const storeNum = orderStoreEl?.value;
+    const sheetId = (typeof STORES !== 'undefined' && STORES[storeNum]) ? STORES[storeNum].sheetId : '';
+    if (!sheetId) { msg.innerHTML = '<span style="color:var(--red)">Select a store first.</span>'; return; }
+    const row = [
+      document.getElementById('co-date').value,
+      document.getElementById('co-vendor').value.trim(),
+      document.getElementById('co-item').value.trim(),
+      document.getElementById('co-unit').value.trim(),
+      document.getElementById('co-qty').value,
+      document.getElementById('co-status').value,
+      document.getElementById('co-notes').value.trim(),
+    ];
+    if (!row[0] || !row[2]) { msg.innerHTML = '<span style="color:var(--red)">Date and Item required.</span>'; return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await sheetsEnsureHeaders(serviceAccount, sheetId, 'Orders', ['Date','Vendor','Item','Unit','Qty','Status','Notes']);
+      await sheetsAppend(serviceAccount, sheetId, 'Orders!A1', [row]);
+      msg.innerHTML = '<span style="color:var(--green)">✓ Order saved.</span>';
+      newOrderForm.style.display = 'none';
+      document.getElementById('coord-load-orders-btn').click();
+    } catch (err) {
+      msg.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled = false; btn.textContent = 'Save Order'; }
+  });
+
+  // ── Recipes ──
+  const recipeStoreEl  = document.getElementById('coord-recipe-store');
+  const recipesWrap    = document.getElementById('coord-recipes-wrap');
+  const newRecipeForm  = document.getElementById('coord-new-recipe-form');
+
+  document.getElementById('coord-new-recipe-btn')?.addEventListener('click', () => {
+    newRecipeForm.style.display = newRecipeForm.style.display === 'none' ? '' : 'none';
+  });
+  document.getElementById('cr-cancel-btn')?.addEventListener('click', () => { newRecipeForm.style.display = 'none'; });
+
+  document.getElementById('coord-load-recipes-btn')?.addEventListener('click', async () => {
+    const storeNum = recipeStoreEl?.value;
+    if (!storeNum) { recipesWrap.innerHTML = '<p style="color:var(--red);font-size:13px">Select a store first.</p>'; return; }
+    const sheetId = (typeof STORES !== 'undefined' && STORES[storeNum]) ? STORES[storeNum].sheetId : '';
+    if (!sheetId) { recipesWrap.innerHTML = '<p style="color:var(--red);font-size:13px">No sheet configured.</p>'; return; }
+    recipesWrap.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Loading…</p></div>';
+    try {
+      const res  = await sheetsGet(serviceAccount, sheetId, 'Recipes!A1:H500');
+      const rows = (res.values || []).slice(1);
+      const html = rows.map(r => `<tr>
+        <td style="font-weight:600">${r[0]||''}</td><td>${r[1]||''}</td><td style="text-align:center">${r[2]||''}</td>
+        <td>${r[3]||''}</td><td style="text-align:center">${r[4]||''}</td><td>${r[5]||''}</td>
+        <td style="text-align:right">$${r[6]||''}</td><td style="text-align:right;font-weight:700">$${r[7]||''}</td>
+      </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No recipes yet.</td></tr>';
+      recipesWrap.innerHTML = `<table class="data-table"><thead><tr>
+        <th>Recipe</th><th>Category</th><th>Servings</th><th>Ingredient</th><th>Qty</th><th>Unit</th><th>Cost/Unit</th><th>Ext. Cost</th>
+      </tr></thead><tbody>${html}</tbody></table>`;
+    } catch (err) {
+      recipesWrap.innerHTML = `<p style="color:var(--red);font-size:13px">Error: ${err.message}</p>`;
+    }
+  });
+
+  document.getElementById('cr-save-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('cr-save-btn');
+    const msg = document.getElementById('cr-status-msg');
+    const storeNum = recipeStoreEl?.value;
+    const sheetId = (typeof STORES !== 'undefined' && STORES[storeNum]) ? STORES[storeNum].sheetId : '';
+    if (!sheetId) { msg.innerHTML = '<span style="color:var(--red)">Select a store first.</span>'; return; }
+    const qty  = parseFloat(document.getElementById('cr-qty').value)     || 0;
+    const cost = parseFloat(document.getElementById('cr-costunit').value) || 0;
+    const row = [
+      document.getElementById('cr-recipe').value.trim(),
+      document.getElementById('cr-cat').value,
+      document.getElementById('cr-servings').value,
+      document.getElementById('cr-ingredient').value.trim(),
+      qty, document.getElementById('cr-unit').value.trim(),
+      cost, (qty * cost).toFixed(2),
+    ];
+    if (!row[0] || !row[3]) { msg.innerHTML = '<span style="color:var(--red)">Recipe name and ingredient required.</span>'; return; }
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await sheetsEnsureHeaders(serviceAccount, sheetId, 'Recipes', ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost']);
+      await sheetsAppend(serviceAccount, sheetId, 'Recipes!A1', [row]);
+      msg.innerHTML = '<span style="color:var(--green)">✓ Recipe row saved.</span>';
+      document.getElementById('coord-load-recipes-btn').click();
+    } catch (err) {
+      msg.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled = false; btn.textContent = 'Save Recipe Row'; }
+  });
 }
 
 function buildCoordinatorShell() {
@@ -58,6 +182,78 @@ function buildCoordinatorShell() {
       <div class="card-title">Food Cost Summary</div>
       <div class="table-wrap" id="food-cost-table-wrap">
         <div class="loading-state"><div class="spinner"></div><p>Loading food cost data...</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">
+        Orders
+        <button class="btn btn-primary btn-sm" id="coord-new-order-btn">+ New Order</button>
+      </div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Store:</label>
+        <select id="coord-order-store" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit">
+          <option value="">— Select Store —</option>
+          ${Object.keys(typeof STORES!=='undefined'?STORES:{}).sort((a,b)=>Number(a)-Number(b)).map(n=>{const s=(typeof STORES!=='undefined'?STORES:{})[n];return`<option value="${n}">#${n}${s&&s.name?' — '+s.name:''}</option>`;}).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" id="coord-load-orders-btn">Load Orders</button>
+      </div>
+      <div id="coord-new-order-form" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div class="form-grid">
+          <div class="form-row"><label>Date</label><input type="date" id="co-date"></div>
+          <div class="form-row"><label>Vendor</label><input type="text" id="co-vendor" placeholder="e.g. Ben E. Keith"></div>
+          <div class="form-row"><label>Item</label><input type="text" id="co-item"></div>
+          <div class="form-row"><label>Unit</label><input type="text" id="co-unit" placeholder="e.g. Case"></div>
+          <div class="form-row"><label>Qty</label><input type="number" id="co-qty" min="1" placeholder="1"></div>
+          <div class="form-row"><label>Status</label>
+            <select id="co-status"><option>Pending</option><option>Ordered</option><option>Received</option><option>Cancelled</option><option>Back-Order</option></select>
+          </div>
+          <div class="form-row"><label>Notes</label><input type="text" id="co-notes" placeholder="Optional"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" id="co-save-btn">Save Order</button>
+          <button class="btn btn-ghost btn-sm" id="co-cancel-btn">Cancel</button>
+        </div>
+        <div id="co-status-msg" style="font-size:13px;margin-top:6px"></div>
+      </div>
+      <div class="table-wrap" id="coord-orders-wrap">
+        <p style="color:var(--muted);font-size:13px;padding:12px 0">Select a store and click Load Orders.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">
+        Recipes
+        <button class="btn btn-primary btn-sm" id="coord-new-recipe-btn">+ New Recipe</button>
+      </div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Store:</label>
+        <select id="coord-recipe-store" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit">
+          <option value="">— Select Store —</option>
+          ${Object.keys(typeof STORES!=='undefined'?STORES:{}).sort((a,b)=>Number(a)-Number(b)).map(n=>{const s=(typeof STORES!=='undefined'?STORES:{})[n];return`<option value="${n}">#${n}${s&&s.name?' — '+s.name:''}</option>`;}).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" id="coord-load-recipes-btn">Load Recipes</button>
+      </div>
+      <div id="coord-new-recipe-form" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div class="form-grid">
+          <div class="form-row"><label>Recipe</label><input type="text" id="cr-recipe"></div>
+          <div class="form-row"><label>Category</label>
+            <select id="cr-cat"><option>Sandwiches</option><option>Salads</option><option>Hot Foods</option><option>Sides</option><option>Soups</option><option>Bakery</option><option>Beverages</option><option>Other</option></select>
+          </div>
+          <div class="form-row"><label>Servings</label><input type="number" id="cr-servings" min="1" placeholder="1"></div>
+          <div class="form-row"><label>Ingredient</label><input type="text" id="cr-ingredient"></div>
+          <div class="form-row"><label>Qty</label><input type="text" id="cr-qty" placeholder="e.g. 2"></div>
+          <div class="form-row"><label>Unit</label><input type="text" id="cr-unit" placeholder="e.g. oz"></div>
+          <div class="form-row"><label>Cost/Unit ($)</label><input type="number" id="cr-costunit" step="0.01" min="0" placeholder="0.00"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" id="cr-save-btn">Save Recipe Row</button>
+          <button class="btn btn-ghost btn-sm" id="cr-cancel-btn">Cancel</button>
+        </div>
+        <div id="cr-status-msg" style="font-size:13px;margin-top:6px"></div>
+      </div>
+      <div class="table-wrap" id="coord-recipes-wrap">
+        <p style="color:var(--muted);font-size:13px;padding:12px 0">Select a store and click Load Recipes.</p>
       </div>
     </div>
 

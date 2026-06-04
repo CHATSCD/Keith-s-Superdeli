@@ -5,15 +5,17 @@
 const DELI_TABS = {
   dailyinv:  { label: 'Daily Inv. Form', tab: 'Daily Inv Control', headers: ['Week Of','Section','Field','Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
   inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
-  countlog:  { label: 'Count Log',  tab: 'COUNT HISTORY',       headers: ['Date','Item #','Section','Category','Item Name','On Hand','Flag'] },
+  wastelog:  { label: 'Waste Log',  tab: 'Waste Log',           headers: ['Date','Item #','Item Name','Section','Qty Wasted','Unit Price','Total Cost','Reason','Notes'] },
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
-  orders:    { label: 'Orders',     tab: 'Orders',              headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
-  recipes:   { label: 'Recipes',    tab: 'Recipes',             headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
+
+// Orders and Recipes tabs — still readable for coordinator dashboard pull
+const ORDERS_TAB_CFG  = { tab: 'Orders',  headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] };
+const RECIPES_TAB_CFG = { tab: 'Recipes', headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] };
 
 const INVENTORY_CATEGORIES = ['Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beverages','Supplies','Other'];
 const ORDER_STATUSES        = ['Pending','Ordered','Received','Cancelled','Back-Order'];
@@ -108,22 +110,36 @@ async function switchDeliTab(container, tabId) {
     ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
     : '';
 
-  // Inventory: if this store has a dedicated count sheet, load from that directly
-  if (tabId === 'inventory' && deliState.countSheetId) {
-    let raw;
-    try {
-      const result = await sheetsGet(deliState.sa, deliState.countSheetId, 'A1:Z1000');
-      raw = result.values || [];
-    } catch (err) {
-      content.innerHTML = `
-        <div class="banner banner-danger">
-          <strong>Could not load count sheet.</strong>
-          <br>Error: <code>${err.message}</code>${saNote}
-        </div>`;
-      return;
-    }
+  // Inventory: load each section from its own dedicated sheet tab
+  if (tabId === 'inventory') {
+    const INV_SECTION_DEFS = [
+      { key: 'deli',     label: '🥩 Deli',          tabName: 'Deli' },
+      { key: 'branded',  label: '🍕 Branded Deli',   tabName: 'Branded Deli' },
+      { key: 'beverage', label: '☕ Fountain',        tabName: 'Fountain' },
+    ];
+    const sheetId = deliState.countSheetId || deliState.sheetId;
 
-    renderCountSheet(content, raw);
+    content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading inventory sections…</p></div>`;
+
+    const sections = await Promise.all(INV_SECTION_DEFS.map(async def => {
+      try {
+        const res = await sheetsGet(deliState.sa, sheetId, `${def.tabName}!A1:Z1000`);
+        return { ...def, sheetId, rows: res.values || [] };
+      } catch (_) {
+        return { ...def, sheetId, rows: [] };
+      }
+    }));
+
+    // Cache combined for waste log item lookup
+    const combined = [].concat(...sections.map(s => s.rows.slice(1)));
+    deliState.data['inventory'] = [['Count By','Item','Item#','Case Pack','On Hand','Per','Total'], ...combined];
+
+    try {
+      renderCountSheetSections(content, sections);
+    } catch(err) {
+      content.innerHTML = `<div class="card"><div class="banner banner-warn"><div class="banner-icon">⚠</div><div>Inventory render error: ${err.message}<br><pre style="font-size:11px;margin-top:8px;white-space:pre-wrap">${err.stack||''}</pre></div></div>
+      <div style="padding:12px;font-size:12px;color:var(--muted)">Section row counts: ${sections.map(s=>s.tabName+': '+s.rows.length).join(', ')}</div></div>`;
+    }
     return;
   }
 
@@ -151,14 +167,11 @@ async function switchDeliTab(container, tabId) {
   }
 
   switch (tabId) {
-    case 'dailyinv':  renderDailyInvForm(content, deliState.data[tabId]); break;
     case 'inventory': renderCountSheet(content, deliState.data[tabId]); break;
-    case 'countlog':  renderCountLog(content,  deliState.data[tabId]); break;
-    case 'foodcost':  renderFoodCost(content,  deliState.data[tabId]); break;
-    case 'invoices':  renderInvoices(content,  deliState.data[tabId]); break;
-    case 'orders':    renderOrders(content,    deliState.data[tabId]); break;
-    case 'recipes':   renderRecipes(content,   deliState.data[tabId]); break;
-    case 'suppliers': renderSuppliers(content, deliState.data[tabId]); break;
+    case 'wastelog':  renderWasteLog(content,   deliState.data[tabId]); break;
+    case 'foodcost':  renderFoodCost(content,   deliState.data[tabId]); break;
+    case 'invoices':  renderInvoices(content,   deliState.data[tabId]); break;
+    case 'suppliers': renderSuppliers(content,  deliState.data[tabId]); break;
   }
 }
 
@@ -198,6 +211,275 @@ async function bekFetchPrices(itemNums) {
 }
 
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// INVENTORY — MULTI-SECTION (each section = its own sheet tab)
+// ════════════════════════════════════════
+
+function renderCountSheetSections(content, sections) {
+  // sections: [{ key, label, tabName, sheetId, rows }]
+
+  function parseSection(sec) {
+    const raw = sec.rows;
+    if (!raw || raw.length === 0) return { headerRow: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, statusColIdx: -1, numCols: 7, headers: [] };
+
+    let headerRowIdx = 0;
+    for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; break; }
+    }
+    const headerRow = raw[headerRowIdx] || [];
+    const dataRows  = raw.slice(headerRowIdx + 1);
+
+    let countColIdx = headerRow.findIndex(h => /^on.?hand$/i.test((h||'').trim()));
+    if (countColIdx < 0) countColIdx = 4;
+    let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+    if (itemNumColIdx < 0) itemNumColIdx = 2;
+    let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+    if (perColIdx < 0) perColIdx = 5;
+    let statusColIdx = headerRow.findIndex(h => /status/i.test(h||''));
+
+    let numCols = 1;
+    for (let i = 0; i < raw.length; i++) { if (raw[i].length > numCols) numCols = raw[i].length; }
+
+    const headers = Array.from({ length: numCols }, (_, i) => {
+      if (i === countColIdx) return 'On Hand';
+      return (headerRow[i] || '').trim() || null;
+    });
+
+    return { headerRow, dataRows, countColIdx, itemNumColIdx, perColIdx, statusColIdx, numCols, headers, headerRowIdx };
+  }
+
+  function buildSectionTable(sec, parsed, secIndex) {
+    const { dataRows, countColIdx, itemNumColIdx, perColIdx, statusColIdx, numCols, headers, headerRowIdx } = parsed;
+    const colHdrs = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
+
+    let outCnt = 0;
+    const rowsHTML = dataRows.map((r, dataIdx) => {
+      if (r.every(c => !(c||'').trim())) return '';
+      const sheetRow = (headerRowIdx || 0) + 2 + dataIdx;
+      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
+      const countV = (r[countColIdx]||'').trim();
+      const itemNumV = (r[itemNumColIdx]||'').trim();
+      const nonEmpty = r.filter(c=>(c||'').trim()).length;
+
+      // Only treat as a section-group header if there is NO item number — real items always have one
+      if (!colA && colB && !countV && !itemNumV && nonEmpty <= 2) {
+        return `<tr><td colspan="${numCols+1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
+      }
+
+      const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx]||'').trim());
+      if (isOut) outCnt++;
+
+      const cells = headers.map((h, i) => {
+        if (h === null) return '';
+        const val = (r[i]||'').trim();
+        if (i === countColIdx) {
+          return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+        }
+        if (i === statusColIdx && val) {
+          const s = val.toUpperCase();
+          const sc = s==='OUT'?'color:var(--red);font-weight:700':s==='LOW'?'color:var(--amber);font-weight:700':s==='OK'?'color:var(--green);font-weight:600':'';
+          return `<td style="${sc}">${val}</td>`;
+        }
+        return `<td>${val}</td>`;
+      }).join('');
+
+      const itemNum = (r[itemNumColIdx]||'').trim();
+      const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
+      return `<tr>${cells}${purchCell}</tr>`;
+    }).join('');
+
+    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small></td></tr>`;
+
+    return { colHdrs, rowsHTML: rowsHTML || emptyMsg, outCnt };
+  }
+
+  const parsed = sections.map(sec => ({ sec, parsed: parseSection(sec) }));
+
+  const totalOut = parsed.reduce((s, { parsed: p, sec }) => {
+    let cnt = 0;
+    p.dataRows.forEach(r => {
+      if (p.statusColIdx >= 0 && /^out$/i.test((r[p.statusColIdx]||'').trim())) cnt++;
+    });
+    return s + cnt;
+  }, 0);
+
+  const tabButtons = [
+    `<button class="tab-btn deli-sub-btn cs-inv-tab active" data-inv-sec="all" style="font-size:13px;white-space:nowrap">All Items${totalOut>0?` <span style="font-size:11px;color:var(--red);font-weight:700">(${totalOut} OUT)</span>`:''}</button>`,
+    ...sections.map((sec, i) => {
+      const { outCnt } = buildSectionTable(sec, parsed[i].parsed, i);
+      return `<button class="tab-btn deli-sub-btn cs-inv-tab" data-inv-sec="${sec.key}" style="font-size:13px;white-space:nowrap">${sec.label}${outCnt>0?` <span style="font-size:11px;color:var(--red);font-weight:700">(${outCnt} OUT)</span>`:''}</button>`;
+    })
+  ].join('');
+
+  // Build section panes
+  const allPaneRows = sections.map((sec, i) => {
+    const { colHdrs, rowsHTML } = buildSectionTable(sec, parsed[i].parsed, i);
+    return `<tr class="sec-group-hdr" data-pane-sec="${sec.key}"><td colspan="99" style="font-weight:700;font-size:13px;background:var(--ks-blue2,#1976D2);color:#fff;padding:7px 12px;letter-spacing:.04em;text-transform:uppercase">${sec.label} — ${sec.tabName}</td></tr>` +
+      rowsHTML.replace(/<tr/g, `<tr data-pane-sec="${sec.key}"`);
+  }).join('');
+
+  // We need per-section colHdrs — use the first section's or a generic fallback
+  const firstParsed = parsed[0].parsed;
+  const genericHdrs = firstParsed.headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Inventory Count Sheet</span>
+        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${totalOut > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${totalOut} OUT total</span>` : ''}
+          <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
+          <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save All Counts</button>
+        </span>
+      </div>
+
+      <!-- BEK Upload panel -->
+      <div id="bek-upload-panel" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Upload BEK Price List (CSV)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">CSV must have columns: <code>item_num</code> and <code>price</code> (or <code>Item Number</code> / <code>Unit Price</code>).</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="bek-file-input" accept=".csv,.txt" style="font-size:13px">
+          <button class="btn btn-primary btn-sm" id="bek-process-btn">Process &amp; Upload</button>
+          <button class="btn btn-ghost btn-sm" id="bek-cancel-btn">Cancel</button>
+        </div>
+        <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
+      <!-- Section tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;-webkit-overflow-scrolling:touch">
+        ${tabButtons}
+      </div>
+
+      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="cs-main-table">
+          <thead><tr>${genericHdrs}</tr></thead>
+          <tbody>${allPaneRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // ── Tab switching ──
+  content.querySelectorAll('.cs-inv-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      content.querySelectorAll('.cs-inv-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sec = btn.dataset.invSec;
+      content.querySelectorAll('#cs-main-table tbody tr').forEach(tr => {
+        const rowSec = tr.dataset.paneSec;
+        tr.style.display = (sec === 'all' || !rowSec || rowSec === sec) ? '' : 'none';
+      });
+    });
+  });
+
+  // ── Per-input auto-save on blur ──
+  content.querySelectorAll('.cs-count-input').forEach(input => {
+    const save = async () => {
+      const sheetRow = input.dataset.csRow;
+      const colIdx   = parseInt(input.dataset.csCol, 10);
+      const tabName  = input.dataset.csTab;
+      const sid      = input.dataset.csSid;
+      if (!sheetRow || isNaN(colIdx)) return;
+      const colLetter = String.fromCharCode(65 + colIdx);
+      input.style.borderColor = 'var(--ks-blue)';
+      try {
+        await sheetsUpdate(deliState.sa, sid, `${tabName}!${colLetter}${sheetRow}`, [[input.value]]);
+        input.style.borderColor = 'var(--green)';
+        setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
+      } catch (_) { input.style.borderColor = 'var(--red)'; }
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  });
+
+  // ── Save All button ──
+  const saveAllBtn    = content.querySelector('#save-all-counts-btn');
+  const saveAllStatus = content.querySelector('#save-all-counts-status');
+  saveAllBtn.addEventListener('click', async () => {
+    const inputs = [...content.querySelectorAll('.cs-count-input')];
+    const checked = [...content.querySelectorAll('.cs-purch-chk:checked')];
+    saveAllBtn.disabled = true; saveAllBtn.textContent = 'Saving…';
+    saveAllStatus.style.display = 'block';
+    saveAllStatus.innerHTML = '<span style="color:var(--muted)">Writing counts…</span>';
+    try {
+      await Promise.all(inputs.map(inp => {
+        const sheetRow = inp.dataset.csRow;
+        const colIdx   = parseInt(inp.dataset.csCol, 10);
+        const tabName  = inp.dataset.csTab;
+        const sid      = inp.dataset.csSid;
+        if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
+        const colLetter = String.fromCharCode(65 + colIdx);
+        return sheetsUpdate(deliState.sa, sid, `${tabName}!${colLetter}${sheetRow}`, [[inp.value]]);
+      }));
+
+      if (checked.length > 0) {
+        saveAllStatus.innerHTML = '<span style="color:var(--muted)">Fetching BEK prices…</span>';
+        const itemNums = [...new Set(checked.map(c => c.dataset.itemNum).filter(Boolean))];
+        let priceMap = {};
+        try { priceMap = await bekFetchPrices(itemNums); } catch (_) {}
+        const priceWrites = checked.filter(c => priceMap[c.dataset.itemNum] != null).map(c => {
+          const colLetter = String.fromCharCode(65 + parseInt(c.dataset.perCol, 10));
+          return sheetsUpdate(deliState.sa, c.dataset.csSid, `${c.dataset.csTab}!${colLetter}${c.dataset.csRow}`, [[priceMap[c.dataset.itemNum]]]);
+        });
+        await Promise.all(priceWrites);
+        checked.forEach(c => { c.checked = false; });
+        saveAllStatus.innerHTML = `<span style="color:var(--green)">✓ ${inputs.length} counts saved, ${priceWrites.length} BEK prices updated.</span>`;
+      } else {
+        saveAllStatus.innerHTML = `<span style="color:var(--green)">✓ All ${inputs.length} counts saved.</span>`;
+      }
+    } catch (err) {
+      saveAllStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      saveAllBtn.disabled = false; saveAllBtn.textContent = '💾 Save All Counts';
+    }
+  });
+
+  // ── BEK Upload ──
+  const bekUploadBtn  = content.querySelector('#bek-upload-btn');
+  const bekPanel      = content.querySelector('#bek-upload-panel');
+  bekUploadBtn.addEventListener('click', () => { bekPanel.style.display = bekPanel.style.display === 'none' ? '' : 'none'; });
+  content.querySelector('#bek-cancel-btn').addEventListener('click', () => { bekPanel.style.display = 'none'; });
+  content.querySelector('#bek-process-btn').addEventListener('click', async () => {
+    const file = content.querySelector('#bek-file-input').files[0];
+    const bekStatus = content.querySelector('#bek-upload-status');
+    if (!file) { bekStatus.innerHTML = '<span style="color:var(--red)">Select a CSV file first.</span>'; return;  }
+    const sbUrl = (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : '';
+    const sbKey = (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : '';
+    if (!sbUrl || !sbKey) { bekStatus.innerHTML = '<span style="color:var(--red)">BEK feed not configured (add SB_URL / SB_KEY).</span>'; return; }
+    const btn = content.querySelector('#bek-process-btn');
+    btn.disabled = true; btn.textContent = 'Processing…';
+    try {
+      const text  = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) throw new Error('CSV appears empty.');
+      const delim = lines[0].includes('\t') ? '\t' : ',';
+      const hdrs  = lines[0].split(delim).map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+      const numCol   = hdrs.findIndex(h => /item.?num|item.?#/i.test(h));
+      const priceCol = hdrs.findIndex(h => /^price$|unit.?price|each.?price/i.test(h));
+      if (numCol < 0 || priceCol < 0) throw new Error(`Couldn't find item_num/price columns. Headers: ${hdrs.join(', ')}`);
+      const rows = lines.slice(1).map(l => {
+        const cols = l.split(delim).map(c => c.replace(/^"|"$/g,'').trim());
+        const price = parseFloat(cols[priceCol]);
+        return cols[numCol] && !isNaN(price) ? { item_num: cols[numCol], price } : null;
+      }).filter(Boolean);
+      if (!rows.length) throw new Error('No valid rows found.');
+      bekStatus.innerHTML = `<span style="color:var(--muted)">Uploading ${rows.length} prices…</span>`;
+      for (let i = 0; i < rows.length; i += 200) {
+        const resp = await fetch(`${sbUrl}/rest/v1/bek_prices`, {
+          method: 'POST',
+          headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify(rows.slice(i, i + 200)),
+        });
+        if (!resp.ok) throw new Error(`Supabase ${resp.status}`);
+      }
+      bekStatus.innerHTML = `<span style="color:var(--green)">✓ ${rows.length} BEK prices uploaded.</span>`;
+    } catch (err) {
+      bekStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled = false; btn.textContent = 'Process & Upload'; }
+  });
+}
+
 // COUNT SHEET (native display, no conversion)
 // ════════════════════════════════════════
 
@@ -265,112 +547,73 @@ function renderCountSheet(content, raw) {
   }
 
   // Build display headers — blank header cells are hidden (null), except the count column
-  const numCols = Math.max(...raw.map(r => r.length), 1);
+  let numCols = 1;
+  for (let i = 0; i < raw.length; i++) { if (raw[i].length > numCols) numCols = raw[i].length; }
   const headers = Array.from({ length: numCols }, (_, i) => {
     if (i === countColIdx) return 'On Hand';
     return (headerRow[i] || '').trim() || null;
   });
 
-  const statusColor = v => {
-    const s = (v || '').toUpperCase();
-    if (s === 'OUT')    return 'color:var(--red);font-weight:700';
-    if (s === 'LOW')    return 'color:var(--amber);font-weight:700';
-    if (s === 'OK')     return 'color:var(--green);font-weight:600';
-    if (/NO.?PAR/i.test(s)) return 'color:var(--muted)';
-    return '';
-  };
-
-  // ── Split data rows into sections ──
-  const SECTION_DEFS = [
-    { key: 'deli',     label: '🥩 Deli',              match: lbl => /deli/i.test(lbl) && !/branded/i.test(lbl) },
-    { key: 'branded',  label: '🍕 Branded Deli',       match: lbl => /branded/i.test(lbl) },
-    { key: 'beverage', label: '☕ Beverage Station',   match: lbl => /fountain|beverage|bev|coffee/i.test(lbl) },
-  ];
-
-  // Group rows by section; rows before any header go into 'other'
-  let activeSec = null;
-  const sectionRows = { deli: [], branded: [], beverage: [], other: [] };
-  dataRows.forEach((r, dataIdx) => {
-    if (r.every(c => !(c || '').trim())) return;
-    const colA    = (r[0] || '').trim();
-    const colB    = (r[1] || '').trim();
-    const countV  = (r[countColIdx] || '').trim();
-    const nonEmpty = r.filter(c => (c || '').trim()).length;
-    if (!colA && colB && !countV && nonEmpty <= 3) {
-      const lbl = colB.toLowerCase();
-      const found = SECTION_DEFS.find(s => s.match(lbl));
-      activeSec = found ? found.key : 'other';
-      // store the header row itself so we can show it inside the section table
-      (sectionRows[activeSec] || sectionRows.other).push({ r, dataIdx, isHeader: true, label: colB });
-      return;
-    }
-    const bucket = activeSec || 'other';
-    (sectionRows[bucket] || sectionRows.other).push({ r, dataIdx, isHeader: false });
-  });
-
+  // ── Build rows and section tabs ──
   const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
 
-  function buildSectionTable(secKey) {
-    const items = sectionRows[secKey] || [];
-    const rowsHTML = items.map(({ r, dataIdx, isHeader, label }) => {
-      const sheetRow = headerRowIdx + 2 + dataIdx;
-      if (isHeader) {
-        return `<tr><td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${label}</td></tr>`;
+  // ── Build all rows, tagging each with its detected section ──
+  let activeSec = 'all';
+  const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
+
+  const rowsHTML = dataRows.map((r, dataIdx) => {
+    const sheetRow = headerRowIdx + 2 + dataIdx;
+    if (r.every(c => !(c || '').trim())) return '';
+
+    const colA     = (r[0] || '').trim();
+    const colB     = (r[1] || '').trim();
+    const countV   = (r[countColIdx] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').trim()).length;
+
+    // Section header row
+    if (!colA && colB && !countV && nonEmpty <= 3) {
+      const lbl = colB.toLowerCase();
+      if      (/branded/i.test(lbl))                         activeSec = 'branded';
+      else if (/fountain|beverage|bev|coffee|bibs/i.test(lbl)) activeSec = 'beverage';
+      else if (/deli/i.test(lbl))                            activeSec = 'deli';
+      else                                                   activeSec = 'other';
+      return `<tr data-sec="${activeSec}"><td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
+    }
+
+    // Track OUT count per section
+    const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx] || '').trim());
+    if (isOut) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
+
+    const cells = headers.map((h, i) => {
+      if (h === null) return '';
+      const val = (r[i] || '').trim();
+      if (i === countColIdx) {
+        return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
       }
-      const cells = headers.map((h, i) => {
-        if (h === null) return '';
-        const val = (r[i] || '').trim();
-        if (i === countColIdx) {
-          return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
-        }
-        if (i === statusColIdx && val) {
-          return `<td style="${statusColor(val)}">${val}</td>`;
-        }
-        return `<td>${val}</td>`;
-      }).join('');
-      const itemNum  = (r[itemNumColIdx] || '').trim();
-      const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
-      return `<tr>${cells}${purchCell}</tr>`;
+      if (i === statusColIdx && val) {
+        const sc = (v => { const s=v.toUpperCase(); return s==='OUT'?'color:var(--red);font-weight:700':s==='LOW'?'color:var(--amber);font-weight:700':s==='OK'?'color:var(--green);font-weight:600':'' })(val);
+        return `<td style="${sc}">${val}</td>`;
+      }
+      return `<td>${val}</td>`;
     }).join('');
 
-    const outCnt = items.filter(({ r, isHeader }) => {
-      if (isHeader) return false;
-      return statusColIdx >= 0 && /^out$/i.test((r[statusColIdx] || '').trim());
-    }).length;
+    const itemNum  = (r[itemNumColIdx] || '').trim();
+    const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
+    return `<tr data-sec="${activeSec}">${cells}${purchCell}</tr>`;
+  }).join('');
 
-    return { rowsHTML, outCnt, hasItems: items.length > 0 };
-  }
-
-  // Overall OUT count
-  const outCount = dataRows.filter(r => {
-    const s = statusColIdx >= 0 ? (r[statusColIdx] || '') : '';
-    return /^out$/i.test(s.trim());
-  }).length;
-
-  const allSections = [
+  const SECTION_TABS = [
+    { key: 'all',      label: 'All Items' },
     { key: 'deli',     label: '🥩 Deli' },
     { key: 'branded',  label: '🍕 Branded Deli' },
     { key: 'beverage', label: '☕ Beverage Station' },
   ];
 
-  // Build tab buttons and pane HTML for each section
-  const tabButtons = allSections.map((s, i) => {
-    const { outCnt } = buildSectionTable(s.key);
-    return `<button class="tab-btn deli-sub-btn cs-inv-tab ${i===0?'active':''}" data-inv-sec="${s.key}" style="font-size:13px">
-      ${s.label}${outCnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${outCnt} OUT)</span>` : ''}
+  const tabButtons = SECTION_TABS.map((s, i) => {
+    const cnt = outCount[s.key] || 0;
+    return `<button class="tab-btn deli-sub-btn cs-inv-tab${i===0?' active':''}" data-inv-sec="${s.key}" style="font-size:13px;white-space:nowrap">
+      ${s.label}${cnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${cnt} OUT)</span>` : ''}
     </button>`;
-  }).join('');
-
-  const tabPanes = allSections.map((s, i) => {
-    const { rowsHTML, hasItems } = buildSectionTable(s.key);
-    return `<div class="cs-inv-pane" data-inv-pane="${s.key}" style="${i===0?'':'display:none'}">
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>${colHeaders}</tr></thead>
-          <tbody>${rowsHTML || `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:24px">No items in this section yet.</td></tr>`}</tbody>
-        </table>
-      </div>
-    </div>`;
   }).join('');
 
   content.innerHTML = `
@@ -378,7 +621,7 @@ function renderCountSheet(content, raw) {
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT total</span>` : ''}
+          ${outCount.all > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount.all} OUT total</span>` : ''}
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
@@ -399,25 +642,28 @@ function renderCountSheet(content, raw) {
       </div>
 
       <!-- Section sub-tabs -->
-      <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0">
+      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
         ${tabButtons}
       </div>
 
-      <div id="save-all-counts-status" style="font-size:13px;margin:8px 0;display:none"></div>
-
-      <!-- Section panes -->
-      ${tabPanes}
+      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="cs-main-table">
+          <thead><tr>${colHeaders}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
     </div>
   `;
 
-  // ── Section sub-tab switching ──
+  // ── Section tab filtering (show/hide rows by data-sec) ──
   content.querySelectorAll('.cs-inv-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       content.querySelectorAll('.cs-inv-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const sec = btn.dataset.invSec;
-      content.querySelectorAll('.cs-inv-pane').forEach(p => {
-        p.style.display = p.dataset.invPane === sec ? '' : 'none';
+      content.querySelectorAll('#cs-main-table tbody tr').forEach(tr => {
+        tr.style.display = (sec === 'all' || tr.dataset.sec === sec) ? '' : 'none';
       });
     });
   });
@@ -1130,84 +1376,224 @@ function renderInventory(content, rows) {
 // COUNT LOG  (writes to COUNT HISTORY tab)
 // ════════════════════════════════════════
 
-function renderCountLog(content, rows) {
-  const invData   = deliState.data['inventory'] || [];
-  const invItems  = invData.slice(1).map(r => ({ num: r[2]||'', name: r[1]||'', section: '', category: '' }));
-  const dataRows  = rows.length > 1 ? rows.slice(1) : [];
-  const today     = new Date().toISOString().split('T')[0];
-  const recent    = dataRows.slice(-20).reverse();
+const WASTE_REASONS = ['Expired','Over-Production','Dropped/Spilled','Quality Reject','Temperature Abuse','Other'];
 
-  const itemOptions = invItems.length
-    ? invItems.map(i => `<option value="${i.num}">${i.num ? i.num + ' — ' : ''}${i.name}</option>`).join('')
-    : '<option value="">— load Inventory tab first —</option>';
+function renderWasteLog(content, rows) {
+  // Pull item list from inventory (already loaded if user visited Inventory tab)
+  // If not yet loaded, fetch it now
+  const invData = deliState.data['inventory'] || [];
 
-  const bodyHTML = recent.map(r => `<tr>
+  async function ensureInvLoaded() {
+    if (invData.length > 1) return invData;
+    if (!deliState.sheetId && !deliState.countSheetId) return [];
+    try {
+      const sheetId = deliState.countSheetId || deliState.sheetId;
+      const result  = await sheetsGet(deliState.sa, sheetId, 'A1:Z1000');
+      const raw = result.values || [];
+      deliState.data['inventory'] = raw;
+      return raw;
+    } catch (_) { return []; }
+  }
+
+  // Build inv item map: itemNum -> { name, section, unitPrice }
+  function buildItemMap(raw) {
+    if (!raw || raw.length < 2) return [];
+    let hdrIdx = 0;
+    for (let i = 0; i < Math.min(6, raw.length); i++) {
+      if (raw[i].some(c => /count.?by|item.?#/i.test(c||''))) { hdrIdx = i; break; }
+    }
+    const hdr = raw[hdrIdx] || [];
+    const nameCol  = hdr.findIndex(h => /^item$|^item.?name/i.test((h||'').trim()));
+    const numCol   = hdr.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+    const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+
+    // track current section from section-header rows
+    let sec = '';
+    const items = [];
+    raw.slice(hdrIdx + 1).forEach(r => {
+      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
+      const nonEmpty = r.filter(c=>(c||'').trim()).length;
+      if (!colA && colB && nonEmpty <= 3) { sec = colB; return; }
+      const name = nameCol >= 0 ? (r[nameCol]||'').trim() : (r[1]||'').trim();
+      const num  = numCol  >= 0 ? (r[numCol] ||'').trim() : (r[2]||'').trim();
+      if (!name) return;
+      const price = perCol >= 0 ? parseFloat(r[perCol]) || 0 : 0;
+      items.push({ num, name, section: sec, price });
+    });
+    return items;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const dataRows = rows && rows.length > 1 ? rows.slice(1) : [];
+
+  // ── Totals helper ──
+  function computeTotals(dRows) {
+    const now   = new Date();
+    const todayStr  = today;
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+    const weekStr   = weekStart.toISOString().split('T')[0];
+    const monthKey  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const yearKey   = String(now.getFullYear());
+
+    let daily=0, weekly=0, monthly=0, yearly=0;
+    dRows.forEach(r => {
+      const d = r[0]||''; const cost = parseFloat(r[6])||0;
+      if (d === todayStr)                                   daily   += cost;
+      if (d >= weekStr && d <= todayStr)                    weekly  += cost;
+      if (d.startsWith(monthKey))                           monthly += cost;
+      if (d.startsWith(yearKey))                            yearly  += cost;
+    });
+    return { daily, weekly, monthly, yearly };
+  }
+
+  const totals  = computeTotals(dataRows);
+  const recent  = dataRows.slice(-50).reverse();
+
+  const histHTML = recent.map(r => `<tr>
     <td>${r[0]||''}</td>
-    <td style="font-size:12px">${r[1]||''}</td>
-    <td>${r[2]||''}</td>
-    <td>${r[3]||''}</td>
-    <td style="font-weight:600">${r[4]||''}</td>
-    <td style="font-weight:700">${r[5]||''}</td>
-    <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${r[6]==='OUT'?'var(--red)':r[6]==='LOW'?'var(--amber)':'var(--green)'};color:#fff">${r[6]||''}</span></td>
+    <td style="font-size:12px;color:var(--muted)">${r[1]||''}</td>
+    <td style="font-weight:600">${r[2]||''}</td>
+    <td style="font-size:12px">${r[3]||''}</td>
+    <td style="text-align:center">${r[4]||''}</td>
+    <td style="text-align:right">$${parseFloat(r[5]||0).toFixed(2)}</td>
+    <td style="text-align:right;font-weight:700;color:var(--red)">$${parseFloat(r[6]||0).toFixed(2)}</td>
+    <td style="font-size:12px">${r[7]||''}</td>
+    <td style="font-size:12px;color:var(--muted)">${r[8]||''}</td>
   </tr>`).join('');
 
+  const initialOptions = buildItemMap(invData).map(i =>
+    `<option value="${i.num}" data-price="${i.price}" data-section="${i.section}">${i.name}${i.num?' ('+i.num+')':''}</option>`
+  ).join('') || '<option value="">Loading items…</option>';
+
   content.innerHTML = `
-    <div class="card">
-      <div class="card-title">Log a Count Entry</div>
-      <div class="form-grid">
-        <div class="form-row"><label>Date</label><input type="date" id="cl-date" value="${today}"></div>
-        <div class="form-row"><label>Item (from inventory)</label>
-          <select id="cl-item">${itemOptions}</select>
-        </div>
-        <div class="form-row"><label>Section</label>
-          <select id="cl-section">${INV_SECTIONS.map(s=>`<option>${s}</option>`).join('')}</select>
-        </div>
-        <div class="form-row"><label>Category</label>
-          <select id="cl-cat">${INV_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
-        </div>
-        <div class="form-row"><label>On Hand Count</label><input type="number" id="cl-onhand" min="0" step="0.1" placeholder="0"></div>
-        <div class="form-row"><label>Flag</label>
-          <select id="cl-flag">${INV_FLAGS.map(f=>`<option>${f}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="btn-row"><button class="btn btn-primary" id="save-cl-btn">Log Count</button></div>
-      <div id="cl-status" style="margin-top:8px;font-size:13px"></div>
+    <!-- Totals Summary -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+      ${[['Today',totals.daily],['This Week',totals.weekly],['This Month',totals.monthly],['This Year',totals.yearly]].map(([lbl,val])=>`
+        <div class="card" style="padding:14px;text-align:center;margin-bottom:0">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${lbl}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">$${val.toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--muted)">waste cost</div>
+        </div>`).join('')}
     </div>
 
+    <!-- Entry Form -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Log Waste Entry</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Date</label>
+          <input type="date" id="wl-date" value="${today}">
+        </div>
+        <div class="form-row"><label>Item</label>
+          <select id="wl-item" style="max-width:100%">
+            <option value="">— Select Item —</option>
+            ${initialOptions}
+          </select>
+        </div>
+        <div class="form-row"><label>Section</label>
+          <input type="text" id="wl-section" readonly style="background:var(--bg)" placeholder="auto-filled">
+        </div>
+        <div class="form-row"><label>Qty Wasted</label>
+          <input type="number" id="wl-qty" min="0" step="0.01" placeholder="0">
+        </div>
+        <div class="form-row"><label>Unit Price ($)</label>
+          <input type="number" id="wl-price" min="0" step="0.01" placeholder="auto-filled">
+        </div>
+        <div class="form-row"><label>Total Cost</label>
+          <input type="text" id="wl-total" readonly style="background:var(--bg);font-weight:700;color:var(--red)" placeholder="$0.00">
+        </div>
+        <div class="form-row"><label>Reason</label>
+          <select id="wl-reason">${WASTE_REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>Notes</label>
+          <input type="text" id="wl-notes" placeholder="Optional notes">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="wl-save-btn">Log Waste</button>
+      </div>
+      <div id="wl-status" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <!-- History -->
     <div class="card">
-      <div class="card-title">Recent Count Entries</div>
+      <div class="card-title">Recent Waste Entries (last 50)</div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Item#</th><th>Section</th><th>Category</th><th>Item Name</th><th>On Hand</th><th>Flag</th></tr></thead>
-          <tbody>${bodyHTML||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">No count entries yet.</td></tr>'}</tbody>
+          <thead><tr>
+            <th>Date</th><th>Item#</th><th>Item</th><th>Section</th>
+            <th>Qty</th><th>Unit $</th><th>Total $</th><th>Reason</th><th>Notes</th>
+          </tr></thead>
+          <tbody>${histHTML||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:28px">No waste entries yet.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `;
 
-  content.querySelector('#save-cl-btn').addEventListener('click', async () => {
-    const btn       = content.querySelector('#save-cl-btn');
-    const statusEl  = content.querySelector('#cl-status');
-    const date      = content.querySelector('#cl-date')?.value;
-    const selEl     = content.querySelector('#cl-item');
-    const itemNum   = selEl?.value || '';
-    const itemName  = selEl?.options[selEl.selectedIndex]?.text?.replace(/^\S+ — /, '') || '';
-    const section   = content.querySelector('#cl-section')?.value;
-    const cat       = content.querySelector('#cl-cat')?.value;
-    const onhand    = content.querySelector('#cl-onhand')?.value;
-    const flag      = content.querySelector('#cl-flag')?.value;
+  // ── Auto-fill price and section when item changes ──
+  const itemSel   = content.querySelector('#wl-item');
+  const priceEl   = content.querySelector('#wl-price');
+  const sectionEl = content.querySelector('#wl-section');
+  const qtyEl     = content.querySelector('#wl-qty');
+  const totalEl   = content.querySelector('#wl-total');
 
-    if (!date || !onhand) { statusEl.innerHTML='<span style="color:var(--red)">Date and On Hand count required.</span>'; return; }
+  function recalcTotal() {
+    const qty   = parseFloat(qtyEl.value)   || 0;
+    const price = parseFloat(priceEl.value) || 0;
+    totalEl.value = qty > 0 && price > 0 ? '$' + (qty * price).toFixed(2) : '$0.00';
+  }
 
-    btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
+  itemSel.addEventListener('change', () => {
+    const opt = itemSel.options[itemSel.selectedIndex];
+    priceEl.value   = opt?.dataset?.price   || '';
+    sectionEl.value = opt?.dataset?.section || '';
+    recalcTotal();
+  });
+  priceEl.addEventListener('input', recalcTotal);
+  qtyEl.addEventListener('input', recalcTotal);
+
+  // If inventory wasn't loaded yet, fetch it and repopulate dropdown
+  if (invData.length < 2 && (deliState.sheetId || deliState.countSheetId)) {
+    ensureInvLoaded().then(raw => {
+      const items = buildItemMap(raw);
+      if (!items.length) return;
+      itemSel.innerHTML = '<option value="">— Select Item —</option>' +
+        items.map(i => `<option value="${i.num}" data-price="${i.price}" data-section="${i.section}">${i.name}${i.num?' ('+i.num+')':''}</option>`).join('');
+    });
+  }
+
+  // ── Save ──
+  content.querySelector('#wl-save-btn').addEventListener('click', async () => {
+    const btn      = content.querySelector('#wl-save-btn');
+    const statusEl = content.querySelector('#wl-status');
+    const date     = content.querySelector('#wl-date').value;
+    const opt      = itemSel.options[itemSel.selectedIndex];
+    const itemNum  = itemSel.value;
+    const itemName = opt?.text?.replace(/\s*\(\d+\)\s*$/, '').trim() || '';
+    const section  = sectionEl.value;
+    const qty      = parseFloat(qtyEl.value) || 0;
+    const price    = parseFloat(priceEl.value) || 0;
+    const total    = (qty * price).toFixed(2);
+    const reason   = content.querySelector('#wl-reason').value;
+    const notes    = content.querySelector('#wl-notes').value.trim();
+
+    if (!date) { statusEl.innerHTML = '<span style="color:var(--red)">Date required.</span>'; return; }
+    if (!itemNum && !itemName) { statusEl.innerHTML = '<span style="color:var(--red)">Select an item.</span>'; return; }
+    if (qty <= 0) { statusEl.innerHTML = '<span style="color:var(--red)">Qty must be greater than 0.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…'; statusEl.textContent = '';
     try {
-      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'COUNT HISTORY', DELI_TABS.countlog.headers);
-      await sheetsAppend(deliState.sa, deliState.sheetId, 'COUNT HISTORY!A1', [[date, itemNum, section, cat, itemName, onhand, flag]]);
-      statusEl.innerHTML='<span style="color:var(--green)">Count logged.</span>';
-      setTimeout(reloadTab, 600);
-    } catch(err) {
-      statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
-    } finally { btn.disabled=false; btn.textContent='Log Count'; }
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Waste Log', DELI_TABS.wastelog.headers);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Waste Log!A1',
+        [[date, itemNum, itemName, section, qty, price, total, reason, notes]]
+      );
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Waste entry logged.</span>';
+      content.querySelector('#wl-qty').value   = '';
+      content.querySelector('#wl-notes').value = '';
+      totalEl.value = '$0.00';
+      setTimeout(reloadTab, 700);
+    } catch (err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled = false; btn.textContent = 'Log Waste'; }
   });
 }
 
