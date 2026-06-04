@@ -264,7 +264,8 @@ function renderCountSheet(content, raw) {
   }
 
   // Build display headers — blank header cells are hidden (null), except the count column
-  const numCols = Math.max(...raw.map(r => r.length), 1);
+  let numCols = 1;
+  for (let i = 0; i < raw.length; i++) { if (raw[i].length > numCols) numCols = raw[i].length; }
   const headers = Array.from({ length: numCols }, (_, i) => {
     if (i === countColIdx) return 'On Hand';
     return (headerRow[i] || '').trim() || null;
@@ -337,7 +338,7 @@ function renderCountSheet(content, raw) {
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT total</span>` : ''}
+          ${outCount.all > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount.all} OUT total</span>` : ''}
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
