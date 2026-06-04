@@ -5,15 +5,17 @@
 const DELI_TABS = {
   dailyinv:  { label: 'Daily Inv. Form', tab: 'Daily Inv Control', headers: ['Week Of','Section','Field','Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
   inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
-  countlog:  { label: 'Count Log',  tab: 'COUNT HISTORY',       headers: ['Date','Item #','Section','Category','Item Name','On Hand','Flag'] },
+  wastelog:  { label: 'Waste Log',  tab: 'Waste Log',           headers: ['Date','Item #','Item Name','Section','Qty Wasted','Unit Price','Total Cost','Reason','Notes'] },
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
-  orders:    { label: 'Orders',     tab: 'Orders',              headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] },
-  recipes:   { label: 'Recipes',    tab: 'Recipes',             headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
+
+// Orders and Recipes tabs — still readable for coordinator dashboard pull
+const ORDERS_TAB_CFG  = { tab: 'Orders',  headers: ['Date','Vendor','Item','Unit','Qty','Status','Notes'] };
+const RECIPES_TAB_CFG = { tab: 'Recipes', headers: ['Recipe','Category','Servings','Ingredient','Qty','Unit','Cost/Unit','Ext. Cost'] };
 
 const INVENTORY_CATEGORIES = ['Meat','Seafood','Produce','Dairy','Dry Goods','Frozen','Beverages','Supplies','Other'];
 const ORDER_STATUSES        = ['Pending','Ordered','Received','Cancelled','Back-Order'];
@@ -151,14 +153,11 @@ async function switchDeliTab(container, tabId) {
   }
 
   switch (tabId) {
-    case 'dailyinv':  renderDailyInvForm(content, deliState.data[tabId]); break;
     case 'inventory': renderCountSheet(content, deliState.data[tabId]); break;
-    case 'countlog':  renderCountLog(content,  deliState.data[tabId]); break;
-    case 'foodcost':  renderFoodCost(content,  deliState.data[tabId]); break;
-    case 'invoices':  renderInvoices(content,  deliState.data[tabId]); break;
-    case 'orders':    renderOrders(content,    deliState.data[tabId]); break;
-    case 'recipes':   renderRecipes(content,   deliState.data[tabId]); break;
-    case 'suppliers': renderSuppliers(content, deliState.data[tabId]); break;
+    case 'wastelog':  renderWasteLog(content,   deliState.data[tabId]); break;
+    case 'foodcost':  renderFoodCost(content,   deliState.data[tabId]); break;
+    case 'invoices':  renderInvoices(content,   deliState.data[tabId]); break;
+    case 'suppliers': renderSuppliers(content,  deliState.data[tabId]); break;
   }
 }
 
@@ -1130,84 +1129,224 @@ function renderInventory(content, rows) {
 // COUNT LOG  (writes to COUNT HISTORY tab)
 // ════════════════════════════════════════
 
-function renderCountLog(content, rows) {
-  const invData   = deliState.data['inventory'] || [];
-  const invItems  = invData.slice(1).map(r => ({ num: r[2]||'', name: r[1]||'', section: '', category: '' }));
-  const dataRows  = rows.length > 1 ? rows.slice(1) : [];
-  const today     = new Date().toISOString().split('T')[0];
-  const recent    = dataRows.slice(-20).reverse();
+const WASTE_REASONS = ['Expired','Over-Production','Dropped/Spilled','Quality Reject','Temperature Abuse','Other'];
 
-  const itemOptions = invItems.length
-    ? invItems.map(i => `<option value="${i.num}">${i.num ? i.num + ' — ' : ''}${i.name}</option>`).join('')
-    : '<option value="">— load Inventory tab first —</option>';
+function renderWasteLog(content, rows) {
+  // Pull item list from inventory (already loaded if user visited Inventory tab)
+  // If not yet loaded, fetch it now
+  const invData = deliState.data['inventory'] || [];
 
-  const bodyHTML = recent.map(r => `<tr>
+  async function ensureInvLoaded() {
+    if (invData.length > 1) return invData;
+    if (!deliState.sheetId && !deliState.countSheetId) return [];
+    try {
+      const sheetId = deliState.countSheetId || deliState.sheetId;
+      const result  = await sheetsGet(deliState.sa, sheetId, 'A1:Z1000');
+      const raw = result.values || [];
+      deliState.data['inventory'] = raw;
+      return raw;
+    } catch (_) { return []; }
+  }
+
+  // Build inv item map: itemNum -> { name, section, unitPrice }
+  function buildItemMap(raw) {
+    if (!raw || raw.length < 2) return [];
+    let hdrIdx = 0;
+    for (let i = 0; i < Math.min(6, raw.length); i++) {
+      if (raw[i].some(c => /count.?by|item.?#/i.test(c||''))) { hdrIdx = i; break; }
+    }
+    const hdr = raw[hdrIdx] || [];
+    const nameCol  = hdr.findIndex(h => /^item$|^item.?name/i.test((h||'').trim()));
+    const numCol   = hdr.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+    const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+
+    // track current section from section-header rows
+    let sec = '';
+    const items = [];
+    raw.slice(hdrIdx + 1).forEach(r => {
+      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
+      const nonEmpty = r.filter(c=>(c||'').trim()).length;
+      if (!colA && colB && nonEmpty <= 3) { sec = colB; return; }
+      const name = nameCol >= 0 ? (r[nameCol]||'').trim() : (r[1]||'').trim();
+      const num  = numCol  >= 0 ? (r[numCol] ||'').trim() : (r[2]||'').trim();
+      if (!name) return;
+      const price = perCol >= 0 ? parseFloat(r[perCol]) || 0 : 0;
+      items.push({ num, name, section: sec, price });
+    });
+    return items;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const dataRows = rows && rows.length > 1 ? rows.slice(1) : [];
+
+  // ── Totals helper ──
+  function computeTotals(dRows) {
+    const now   = new Date();
+    const todayStr  = today;
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+    const weekStr   = weekStart.toISOString().split('T')[0];
+    const monthKey  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const yearKey   = String(now.getFullYear());
+
+    let daily=0, weekly=0, monthly=0, yearly=0;
+    dRows.forEach(r => {
+      const d = r[0]||''; const cost = parseFloat(r[6])||0;
+      if (d === todayStr)                                   daily   += cost;
+      if (d >= weekStr && d <= todayStr)                    weekly  += cost;
+      if (d.startsWith(monthKey))                           monthly += cost;
+      if (d.startsWith(yearKey))                            yearly  += cost;
+    });
+    return { daily, weekly, monthly, yearly };
+  }
+
+  const totals  = computeTotals(dataRows);
+  const recent  = dataRows.slice(-50).reverse();
+
+  const histHTML = recent.map(r => `<tr>
     <td>${r[0]||''}</td>
-    <td style="font-size:12px">${r[1]||''}</td>
-    <td>${r[2]||''}</td>
-    <td>${r[3]||''}</td>
-    <td style="font-weight:600">${r[4]||''}</td>
-    <td style="font-weight:700">${r[5]||''}</td>
-    <td><span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${r[6]==='OUT'?'var(--red)':r[6]==='LOW'?'var(--amber)':'var(--green)'};color:#fff">${r[6]||''}</span></td>
+    <td style="font-size:12px;color:var(--muted)">${r[1]||''}</td>
+    <td style="font-weight:600">${r[2]||''}</td>
+    <td style="font-size:12px">${r[3]||''}</td>
+    <td style="text-align:center">${r[4]||''}</td>
+    <td style="text-align:right">$${parseFloat(r[5]||0).toFixed(2)}</td>
+    <td style="text-align:right;font-weight:700;color:var(--red)">$${parseFloat(r[6]||0).toFixed(2)}</td>
+    <td style="font-size:12px">${r[7]||''}</td>
+    <td style="font-size:12px;color:var(--muted)">${r[8]||''}</td>
   </tr>`).join('');
 
+  const initialOptions = buildItemMap(invData).map(i =>
+    `<option value="${i.num}" data-price="${i.price}" data-section="${i.section}">${i.name}${i.num?' ('+i.num+')':''}</option>`
+  ).join('') || '<option value="">Loading items…</option>';
+
   content.innerHTML = `
-    <div class="card">
-      <div class="card-title">Log a Count Entry</div>
-      <div class="form-grid">
-        <div class="form-row"><label>Date</label><input type="date" id="cl-date" value="${today}"></div>
-        <div class="form-row"><label>Item (from inventory)</label>
-          <select id="cl-item">${itemOptions}</select>
-        </div>
-        <div class="form-row"><label>Section</label>
-          <select id="cl-section">${INV_SECTIONS.map(s=>`<option>${s}</option>`).join('')}</select>
-        </div>
-        <div class="form-row"><label>Category</label>
-          <select id="cl-cat">${INV_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
-        </div>
-        <div class="form-row"><label>On Hand Count</label><input type="number" id="cl-onhand" min="0" step="0.1" placeholder="0"></div>
-        <div class="form-row"><label>Flag</label>
-          <select id="cl-flag">${INV_FLAGS.map(f=>`<option>${f}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="btn-row"><button class="btn btn-primary" id="save-cl-btn">Log Count</button></div>
-      <div id="cl-status" style="margin-top:8px;font-size:13px"></div>
+    <!-- Totals Summary -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+      ${[['Today',totals.daily],['This Week',totals.weekly],['This Month',totals.monthly],['This Year',totals.yearly]].map(([lbl,val])=>`
+        <div class="card" style="padding:14px;text-align:center;margin-bottom:0">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">${lbl}</div>
+          <div style="font-size:22px;font-weight:800;color:var(--red);margin-top:4px">$${val.toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--muted)">waste cost</div>
+        </div>`).join('')}
     </div>
 
+    <!-- Entry Form -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Log Waste Entry</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Date</label>
+          <input type="date" id="wl-date" value="${today}">
+        </div>
+        <div class="form-row"><label>Item</label>
+          <select id="wl-item" style="max-width:100%">
+            <option value="">— Select Item —</option>
+            ${initialOptions}
+          </select>
+        </div>
+        <div class="form-row"><label>Section</label>
+          <input type="text" id="wl-section" readonly style="background:var(--bg)" placeholder="auto-filled">
+        </div>
+        <div class="form-row"><label>Qty Wasted</label>
+          <input type="number" id="wl-qty" min="0" step="0.01" placeholder="0">
+        </div>
+        <div class="form-row"><label>Unit Price ($)</label>
+          <input type="number" id="wl-price" min="0" step="0.01" placeholder="auto-filled">
+        </div>
+        <div class="form-row"><label>Total Cost</label>
+          <input type="text" id="wl-total" readonly style="background:var(--bg);font-weight:700;color:var(--red)" placeholder="$0.00">
+        </div>
+        <div class="form-row"><label>Reason</label>
+          <select id="wl-reason">${WASTE_REASONS.map(r=>`<option>${r}</option>`).join('')}</select>
+        </div>
+        <div class="form-row"><label>Notes</label>
+          <input type="text" id="wl-notes" placeholder="Optional notes">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="wl-save-btn">Log Waste</button>
+      </div>
+      <div id="wl-status" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <!-- History -->
     <div class="card">
-      <div class="card-title">Recent Count Entries</div>
+      <div class="card-title">Recent Waste Entries (last 50)</div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Item#</th><th>Section</th><th>Category</th><th>Item Name</th><th>On Hand</th><th>Flag</th></tr></thead>
-          <tbody>${bodyHTML||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">No count entries yet.</td></tr>'}</tbody>
+          <thead><tr>
+            <th>Date</th><th>Item#</th><th>Item</th><th>Section</th>
+            <th>Qty</th><th>Unit $</th><th>Total $</th><th>Reason</th><th>Notes</th>
+          </tr></thead>
+          <tbody>${histHTML||'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:28px">No waste entries yet.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `;
 
-  content.querySelector('#save-cl-btn').addEventListener('click', async () => {
-    const btn       = content.querySelector('#save-cl-btn');
-    const statusEl  = content.querySelector('#cl-status');
-    const date      = content.querySelector('#cl-date')?.value;
-    const selEl     = content.querySelector('#cl-item');
-    const itemNum   = selEl?.value || '';
-    const itemName  = selEl?.options[selEl.selectedIndex]?.text?.replace(/^\S+ — /, '') || '';
-    const section   = content.querySelector('#cl-section')?.value;
-    const cat       = content.querySelector('#cl-cat')?.value;
-    const onhand    = content.querySelector('#cl-onhand')?.value;
-    const flag      = content.querySelector('#cl-flag')?.value;
+  // ── Auto-fill price and section when item changes ──
+  const itemSel   = content.querySelector('#wl-item');
+  const priceEl   = content.querySelector('#wl-price');
+  const sectionEl = content.querySelector('#wl-section');
+  const qtyEl     = content.querySelector('#wl-qty');
+  const totalEl   = content.querySelector('#wl-total');
 
-    if (!date || !onhand) { statusEl.innerHTML='<span style="color:var(--red)">Date and On Hand count required.</span>'; return; }
+  function recalcTotal() {
+    const qty   = parseFloat(qtyEl.value)   || 0;
+    const price = parseFloat(priceEl.value) || 0;
+    totalEl.value = qty > 0 && price > 0 ? '$' + (qty * price).toFixed(2) : '$0.00';
+  }
 
-    btn.disabled=true; btn.textContent='Saving…'; statusEl.textContent='';
+  itemSel.addEventListener('change', () => {
+    const opt = itemSel.options[itemSel.selectedIndex];
+    priceEl.value   = opt?.dataset?.price   || '';
+    sectionEl.value = opt?.dataset?.section || '';
+    recalcTotal();
+  });
+  priceEl.addEventListener('input', recalcTotal);
+  qtyEl.addEventListener('input', recalcTotal);
+
+  // If inventory wasn't loaded yet, fetch it and repopulate dropdown
+  if (invData.length < 2 && (deliState.sheetId || deliState.countSheetId)) {
+    ensureInvLoaded().then(raw => {
+      const items = buildItemMap(raw);
+      if (!items.length) return;
+      itemSel.innerHTML = '<option value="">— Select Item —</option>' +
+        items.map(i => `<option value="${i.num}" data-price="${i.price}" data-section="${i.section}">${i.name}${i.num?' ('+i.num+')':''}</option>`).join('');
+    });
+  }
+
+  // ── Save ──
+  content.querySelector('#wl-save-btn').addEventListener('click', async () => {
+    const btn      = content.querySelector('#wl-save-btn');
+    const statusEl = content.querySelector('#wl-status');
+    const date     = content.querySelector('#wl-date').value;
+    const opt      = itemSel.options[itemSel.selectedIndex];
+    const itemNum  = itemSel.value;
+    const itemName = opt?.text?.replace(/\s*\(\d+\)\s*$/, '').trim() || '';
+    const section  = sectionEl.value;
+    const qty      = parseFloat(qtyEl.value) || 0;
+    const price    = parseFloat(priceEl.value) || 0;
+    const total    = (qty * price).toFixed(2);
+    const reason   = content.querySelector('#wl-reason').value;
+    const notes    = content.querySelector('#wl-notes').value.trim();
+
+    if (!date) { statusEl.innerHTML = '<span style="color:var(--red)">Date required.</span>'; return; }
+    if (!itemNum && !itemName) { statusEl.innerHTML = '<span style="color:var(--red)">Select an item.</span>'; return; }
+    if (qty <= 0) { statusEl.innerHTML = '<span style="color:var(--red)">Qty must be greater than 0.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Saving…'; statusEl.textContent = '';
     try {
-      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'COUNT HISTORY', DELI_TABS.countlog.headers);
-      await sheetsAppend(deliState.sa, deliState.sheetId, 'COUNT HISTORY!A1', [[date, itemNum, section, cat, itemName, onhand, flag]]);
-      statusEl.innerHTML='<span style="color:var(--green)">Count logged.</span>';
-      setTimeout(reloadTab, 600);
-    } catch(err) {
-      statusEl.innerHTML=`<span style="color:var(--red)">Error: ${err.message}</span>`;
-    } finally { btn.disabled=false; btn.textContent='Log Count'; }
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Waste Log', DELI_TABS.wastelog.headers);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Waste Log!A1',
+        [[date, itemNum, itemName, section, qty, price, total, reason, notes]]
+      );
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Waste entry logged.</span>';
+      content.querySelector('#wl-qty').value   = '';
+      content.querySelector('#wl-notes').value = '';
+      totalEl.value = '$0.00';
+      setTimeout(reloadTab, 700);
+    } catch (err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally { btn.disabled = false; btn.textContent = 'Log Waste'; }
   });
 }
 
