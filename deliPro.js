@@ -4,7 +4,7 @@
 
 const DELI_TABS = {
   dailyinv:  { label: 'Daily Inv. Form', tab: 'Daily Inv Control', headers: ['Week Of','Section','Field','Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
-  inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
+  inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Item','Case Pack','On Hand','Per','Total'] },
   wastelog:  { label: 'Waste Log',  tab: 'Waste Log',           headers: ['Date','Item #','Item Name','Section','Qty Wasted','Unit Price','Total Cost','Reason','Notes'] },
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
@@ -113,9 +113,9 @@ async function switchDeliTab(container, tabId) {
   // Inventory: load each section from its own dedicated sheet tab
   if (tabId === 'inventory') {
     const INV_SECTION_DEFS = [
-      { key: 'deli',     label: '🥩 Deli',          tabName: 'Deli' },
-      { key: 'branded',  label: '🍕 Branded Deli',   tabName: 'Branded Deli' },
-      { key: 'beverage', label: '☕ Fountain',        tabName: 'Fountain' },
+      { key: 'deli',     label: 'Deli',          tabName: 'Deli' },
+      { key: 'branded',  label: 'Branded Deli',   tabName: 'Branded Deli' },
+      { key: 'beverage', label: 'Fountain',        tabName: 'Fountain' },
     ];
     const sheetId = deliState.countSheetId || deliState.sheetId;
 
@@ -132,7 +132,7 @@ async function switchDeliTab(container, tabId) {
 
     // Cache combined for waste log item lookup
     const combined = [].concat(...sections.map(s => s.rows.slice(1)));
-    deliState.data['inventory'] = [['Count By','Item','Item#','Case Pack','On Hand','Per','Total'], ...combined];
+    deliState.data['inventory'] = [['Item','Case Pack','On Hand','Per','Total'], ...combined];
 
     try {
       renderCountSheetSections(content, sections);
@@ -167,7 +167,7 @@ async function switchDeliTab(container, tabId) {
   }
 
   switch (tabId) {
-    case 'inventory': renderCountSheet(content, deliState.data[tabId]); break;
+    case 'deli': renderCountSheet(content, deliState.data[tabId]); break;
     case 'wastelog':  renderWasteLog(content,   deliState.data[tabId]); break;
     case 'foodcost':  renderFoodCost(content,   deliState.data[tabId]); break;
     case 'invoices':  renderInvoices(content,   deliState.data[tabId]); break;
@@ -181,7 +181,6 @@ function reloadTab() {
 }
 
 const COUNT_BY_OPTIONS = ['BAG','BOX','CAKE','CAN','CARTON','CASE','CONTAINER','EACH','FLAT','JUG','LOAF','PACK','PAIL','PIE','ROLL','SHAKER','SLEEVE','OTHER'];
-const INV_SECTIONS     = ['Deli','Fountain','Branded Deli'];
 const INV_CATEGORIES   = ['Bread','Cheese','Condiments','Dairy','Deli Meat','Other','Packaging','Produce','BIB / CO2','Cafe Tango','Coffee','Coffee Beans','Creamer & Sweetener','Cups & Lids','Syrups & Sauce','Pizza','Spices','Toppings','Wings'];
 const INV_FLAGS        = ['OK','LOW','OUT'];
 
@@ -262,9 +261,7 @@ function renderCountSheetSections(content, sections) {
       const nonEmpty = r.filter(c=>(c||'').trim()).length;
 
       // Only treat as a section-group header if there is NO item number — real items always have one
-      if (!colA && colB && !countV && !itemNumV && nonEmpty <= 2) {
-        return `<tr><td colspan="${numCols+1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
-      }
+     
 
       const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx]||'').trim());
       if (isOut) outCnt++;
@@ -283,10 +280,6 @@ function renderCountSheetSections(content, sections) {
         return `<td>${val}</td>`;
       }).join('');
 
-      const itemNum = (r[itemNumColIdx]||'').trim();
-      const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
-      return `<tr>${cells}${purchCell}</tr>`;
-    }).join('');
 
     const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small></td></tr>`;
 
@@ -494,7 +487,7 @@ function renderCountSheet(content, raw) {
   let headerRowIdx = 0;
   let headerFound = false;
   for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
-    if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) {
+    if (raw[ri].some(c => /on hand?|item\/i.test(c || ''))) {
       headerRowIdx = ri;
       headerFound = true;
       break;
