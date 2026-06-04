@@ -280,86 +280,115 @@ function renderCountSheet(content, raw) {
     return '';
   };
 
-  // ── Build section map so we can tag every row with its section ──
-  let currentSection = 'all';
-  const rowSections = dataRows.map(r => {
-    if (r.every(c => !(c || '').trim())) return currentSection;
-    const colA   = (r[0] || '').trim();
-    const colB   = (r[1] || '').trim();
-    const countV = (r[countColIdx] || '').trim();
-    const nonEmpty = r.filter(c => (c || '').trim()).length;
-    if (!colA && colB && !countV && nonEmpty <= 3) {
-      const lbl = colB.toLowerCase();
-      if (/branded/i.test(lbl))          currentSection = 'branded';
-      else if (/fountain|beverage|bev/i.test(lbl)) currentSection = 'beverage';
-      else if (/deli/i.test(lbl))        currentSection = 'deli';
-      else                               currentSection = colB;
-    }
-    return currentSection;
-  });
+  // ── Split data rows into sections ──
+  const SECTION_DEFS = [
+    { key: 'deli',     label: '🥩 Deli',              match: lbl => /deli/i.test(lbl) && !/branded/i.test(lbl) },
+    { key: 'branded',  label: '🍕 Branded Deli',       match: lbl => /branded/i.test(lbl) },
+    { key: 'beverage', label: '☕ Beverage Station',   match: lbl => /fountain|beverage|bev|coffee/i.test(lbl) },
+  ];
 
-  const rowsHTML = dataRows.map((r, dataIdx) => {
-    // Sheet row number: header is at headerRowIdx+1 (1-based), data starts one after
-    const sheetRow = headerRowIdx + 2 + dataIdx;
-    if (r.every(c => !(c || '').trim())) return '';
-
+  // Group rows by section; rows before any header go into 'other'
+  let activeSec = null;
+  const sectionRows = { deli: [], branded: [], beverage: [], other: [] };
+  dataRows.forEach((r, dataIdx) => {
+    if (r.every(c => !(c || '').trim())) return;
     const colA    = (r[0] || '').trim();
     const colB    = (r[1] || '').trim();
     const countV  = (r[countColIdx] || '').trim();
     const nonEmpty = r.filter(c => (c || '').trim()).length;
-    const secKey  = rowSections[dataIdx];
-
-    // Section header row: product col empty, name col has text, no count, few cells populated
     if (!colA && colB && !countV && nonEmpty <= 3) {
-      return `<tr data-section="${secKey}">
-        <td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td>
-      </tr>`;
+      const lbl = colB.toLowerCase();
+      const found = SECTION_DEFS.find(s => s.match(lbl));
+      activeSec = found ? found.key : 'other';
+      // store the header row itself so we can show it inside the section table
+      (sectionRows[activeSec] || sectionRows.other).push({ r, dataIdx, isHeader: true, label: colB });
+      return;
     }
-
-    const cells = headers.map((h, i) => {
-      if (h === null) return '';
-      const val = (r[i] || '').trim();
-
-      if (i === countColIdx) {
-        return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
-      }
-      if (i === statusColIdx && val) {
-        return `<td style="${statusColor(val)}">${val}</td>`;
-      }
-      return `<td>${val}</td>`;
-    }).join('');
-
-    const itemNum  = (r[itemNumColIdx] || '').trim();
-    const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
-
-    return `<tr data-section="${secKey}">${cells}${purchCell}</tr>`;
-  }).join('');
+    const bucket = activeSec || 'other';
+    (sectionRows[bucket] || sectionRows.other).push({ r, dataIdx, isHeader: false });
+  });
 
   const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
 
-  // Summary: count OUT items
+  function buildSectionTable(secKey) {
+    const items = sectionRows[secKey] || [];
+    const rowsHTML = items.map(({ r, dataIdx, isHeader, label }) => {
+      const sheetRow = headerRowIdx + 2 + dataIdx;
+      if (isHeader) {
+        return `<tr><td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${label}</td></tr>`;
+      }
+      const cells = headers.map((h, i) => {
+        if (h === null) return '';
+        const val = (r[i] || '').trim();
+        if (i === countColIdx) {
+          return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
+        }
+        if (i === statusColIdx && val) {
+          return `<td style="${statusColor(val)}">${val}</td>`;
+        }
+        return `<td>${val}</td>`;
+      }).join('');
+      const itemNum  = (r[itemNumColIdx] || '').trim();
+      const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
+      return `<tr>${cells}${purchCell}</tr>`;
+    }).join('');
+
+    const outCnt = items.filter(({ r, isHeader }) => {
+      if (isHeader) return false;
+      return statusColIdx >= 0 && /^out$/i.test((r[statusColIdx] || '').trim());
+    }).length;
+
+    return { rowsHTML, outCnt, hasItems: items.length > 0 };
+  }
+
+  // Overall OUT count
   const outCount = dataRows.filter(r => {
     const s = statusColIdx >= 0 ? (r[statusColIdx] || '') : '';
     return /^out$/i.test(s.trim());
   }).length;
+
+  const allSections = [
+    { key: 'deli',     label: '🥩 Deli' },
+    { key: 'branded',  label: '🍕 Branded Deli' },
+    { key: 'beverage', label: '☕ Beverage Station' },
+  ];
+
+  // Build tab buttons and pane HTML for each section
+  const tabButtons = allSections.map((s, i) => {
+    const { outCnt } = buildSectionTable(s.key);
+    return `<button class="tab-btn deli-sub-btn cs-inv-tab ${i===0?'active':''}" data-inv-sec="${s.key}" style="font-size:13px">
+      ${s.label}${outCnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${outCnt} OUT)</span>` : ''}
+    </button>`;
+  }).join('');
+
+  const tabPanes = allSections.map((s, i) => {
+    const { rowsHTML, hasItems } = buildSectionTable(s.key);
+    return `<div class="cs-inv-pane" data-inv-pane="${s.key}" style="${i===0?'':'display:none'}">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>${colHeaders}</tr></thead>
+          <tbody>${rowsHTML || `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:24px">No items in this section yet.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
 
   content.innerHTML = `
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT</span>` : ''}
+          ${outCount > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount} OUT total</span>` : ''}
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
       </div>
 
-      <!-- BEK Upload panel (hidden by default) -->
+      <!-- BEK Upload panel -->
       <div id="bek-upload-panel" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
         <div style="font-weight:600;font-size:13px;margin-bottom:8px">Upload BEK Price List (CSV)</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
           CSV must have columns: <code>item_num</code> and <code>price</code> (or <code>Item Number</code> / <code>Unit Price</code>).
-          Rows are upserted to the BEK price feed used for auto-fill.
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input type="file" id="bek-file-input" accept=".csv,.txt" style="font-size:13px">
@@ -369,38 +398,26 @@ function renderCountSheet(content, raw) {
         <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
-      <!-- Section filter tabs -->
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm cs-section-btn active" data-sec="all">All Items</button>
-        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="deli">🥩 Deli</button>
-        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="branded">🍕 Branded Deli</button>
-        <button class="btn btn-ghost btn-sm cs-section-btn" data-sec="beverage">☕ Beverage Station</button>
+      <!-- Section sub-tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0">
+        ${tabButtons}
       </div>
 
-      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
-      <div class="table-wrap">
-        <table class="data-table" id="cs-table">
-          <thead><tr>${colHeaders}</tr></thead>
-          <tbody>${rowsHTML}</tbody>
-        </table>
-      </div>
+      <div id="save-all-counts-status" style="font-size:13px;margin:8px 0;display:none"></div>
+
+      <!-- Section panes -->
+      ${tabPanes}
     </div>
   `;
 
-  // ── Section filter tabs ──
-  content.querySelectorAll('.cs-section-btn').forEach(btn => {
+  // ── Section sub-tab switching ──
+  content.querySelectorAll('.cs-inv-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      content.querySelectorAll('.cs-section-btn').forEach(b => {
-        b.classList.remove('active', 'btn-primary');
-        b.classList.add('btn-ghost');
-      });
-      btn.classList.add('active', 'btn-primary');
-      btn.classList.remove('btn-ghost');
-
-      const sec = btn.dataset.sec;
-      content.querySelectorAll('#cs-table tbody tr').forEach(tr => {
-        const rowSec = tr.dataset.section || 'all';
-        tr.style.display = (sec === 'all' || rowSec === sec) ? '' : 'none';
+      content.querySelectorAll('.cs-inv-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sec = btn.dataset.invSec;
+      content.querySelectorAll('.cs-inv-pane').forEach(p => {
+        p.style.display = p.dataset.invPane === sec ? '' : 'none';
       });
     });
   });
