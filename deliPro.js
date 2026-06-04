@@ -115,7 +115,7 @@ async function switchDeliTab(container, tabId) {
     const INV_SECTION_DEFS = [
       { key: 'deli',     label: 'Deli',          tabName: 'Deli' },
       { key: 'branded',  label: 'Branded Deli',   tabName: 'Branded Deli' },
-      { key: 'beverage', label: 'Fountain',        tabName: 'Fountain' },
+      { key: 'Fountain', label: 'Fountain',        tabName: 'Fountain' },
     ];
     const sheetId = deliState.countSheetId || deliState.sheetId;
 
@@ -132,7 +132,7 @@ async function switchDeliTab(container, tabId) {
 
     // Cache combined for waste log item lookup
     const combined = [].concat(...sections.map(s => s.rows.slice(1)));
-    deliState.data['inventory'] = [['Item','Case Pack','On Hand','Per','Total'], ...combined];
+    deliState.data['inventory'] = [['Item','unit','On Hand','cost','Total'], ...combined];
 
     try {
       renderCountSheetSections(content, sections);
