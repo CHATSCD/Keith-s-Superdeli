@@ -1261,6 +1261,27 @@ function renderTraining(content) {
   `).join('');
 
   content.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title">📖 Deli Pro — App User Manual</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+        Complete guide to every feature in the app — from entering counts to reading analytics.
+      </p>
+      <a href="manual.html" target="_blank" rel="noopener" style="
+        display:block;text-decoration:none;color:inherit;
+        background:#fff;border-radius:var(--radius);padding:18px 20px;
+        box-shadow:var(--shadow);border-left:4px solid var(--ks-blue);
+      ">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:32px;flex-shrink:0">📘</div>
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--ks-blue)">Deli Pro User Manual</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:3px">Inventory, food cost, Purch? workflow, inspections, maintenance logs, coordinator guide &amp; troubleshooting</div>
+          </div>
+          <div style="margin-left:auto;color:var(--ks-blue);font-size:20px;flex-shrink:0">↗</div>
+        </div>
+      </a>
+    </div>
+
     <div class="card">
       <div class="card-title">🍦 Spaceman 6235-C — Training Materials</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
