@@ -936,13 +936,59 @@ body {
 .stat-pill-value.red   { color: var(--red); }
 .stat-pill-value.amber { color: var(--amber); }
 
-/* === Maintenance Sub‑Tab Visibility Fix === */
-.maintenance-sub-btn {
-  color: var(--ks-blue2);
-  border-color: var(--ks-blue2);
+/* ── Entry Log Components ─────────────────────────── */
+.status-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.pill-ok   { background: #dcfce7; color: #15803d; }
+.pill-no   { background: #fee2e2; color: #dc2626; }
+.pill-info { background: #dbeafe; color: #1d4ed8; }
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
 }
 
-.maintenance-sub-btn.active {
-  background: var(--ks-blue);
-  color: #fff;
+.entry-form-area .form-grid { margin-bottom: 0; }
+
+
+/* ── Maintenance Log sub-tabs (white background — needs dark text) ── */
+#log-tab-nav {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 6px 8px !important;
+  flex-wrap: wrap;
+  gap: 6px !important;
+  border: 1px solid var(--gray);
+  margin-bottom: 16px;
 }
+#log-tab-nav .tab-btn {
+  color: var(--muted);
+  background: #fff;
+  border: 1.5px solid var(--gray);
+  border-bottom: 1.5px solid var(--gray) !important;
+  border-radius: 20px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background .15s, color .15s, border-color .15s;
+}
+#log-tab-nav .tab-btn:hover {
+  color: var(--ks-blue);
+  border-color: var(--ks-blue) !important;
+  background: rgba(21,101,192,.06);
+}
+#log-tab-nav .tab-btn.active {
+  color: #fff !important;
+  background: var(--ks-blue) !important;
+  border-color: var(--ks-blue) !important;
+  border-bottom-color: var(--ks-blue) !important;
+}
+
