@@ -270,77 +270,53 @@ function renderCountSheet(content, raw) {
     return (headerRow[i] || '').trim() || null;
   });
 
-  const statusColor = v => {
-    const s = (v || '').toUpperCase();
-    if (s === 'OUT')    return 'color:var(--red);font-weight:700';
-    if (s === 'LOW')    return 'color:var(--amber);font-weight:700';
-    if (s === 'OK')     return 'color:var(--green);font-weight:600';
-    if (/NO.?PAR/i.test(s)) return 'color:var(--muted)';
-    return '';
-  };
-
-  // ── Split data rows into sections ──
+  // ── Build rows and section tabs ──
   const colHeaders = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
 
-  // ── Build one row of HTML from a raw data row ──
-  function buildDataRow(r, dataIdx) {
+  // ── Build all rows, tagging each with its detected section ──
+  let activeSec = 'all';
+  const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
+
+  const rowsHTML = dataRows.map((r, dataIdx) => {
     const sheetRow = headerRowIdx + 2 + dataIdx;
+    if (r.every(c => !(c || '').trim())) return '';
+
+    const colA     = (r[0] || '').trim();
+    const colB     = (r[1] || '').trim();
+    const countV   = (r[countColIdx] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').trim()).length;
+
+    // Section header row
+    if (!colA && colB && !countV && nonEmpty <= 3) {
+      const lbl = colB.toLowerCase();
+      if      (/branded/i.test(lbl))                         activeSec = 'branded';
+      else if (/fountain|beverage|bev|coffee|bibs/i.test(lbl)) activeSec = 'beverage';
+      else if (/deli/i.test(lbl))                            activeSec = 'deli';
+      else                                                   activeSec = 'other';
+      return `<tr data-sec="${activeSec}"><td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
+    }
+
+    // Track OUT count per section
+    const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx] || '').trim());
+    if (isOut) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
+
     const cells = headers.map((h, i) => {
       if (h === null) return '';
       const val = (r[i] || '').trim();
       if (i === countColIdx) {
         return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
       }
-      if (i === statusColIdx && val) return `<td style="${statusColor(val)}">${val}</td>`;
+      if (i === statusColIdx && val) {
+        const sc = (v => { const s=v.toUpperCase(); return s==='OUT'?'color:var(--red);font-weight:700':s==='LOW'?'color:var(--amber);font-weight:700':s==='OK'?'color:var(--green);font-weight:600':'' })(val);
+        return `<td style="${sc}">${val}</td>`;
+      }
       return `<td>${val}</td>`;
     }).join('');
-    const itemNum = (r[itemNumColIdx] || '').trim();
+
+    const itemNum  = (r[itemNumColIdx] || '').trim();
     const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
-    return `<tr>${cells}${purchCell}</tr>`;
-  }
-
-  function buildHeaderRow(label) {
-    return `<tr><td colspan="${numCols + 1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${label}</td></tr>`;
-  }
-
-  // ── Tag every row with its detected section ──
-  let activeSec = 'all';
-  const taggedRows = dataRows.map((r, dataIdx) => {
-    if (r.every(c => !(c || '').trim())) return null;
-    const colA    = (r[0] || '').trim();
-    const colB    = (r[1] || '').trim();
-    const countV  = (r[countColIdx] || '').trim();
-    const nonEmpty = r.filter(c => (c || '').trim()).length;
-    if (!colA && colB && !countV && nonEmpty <= 3) {
-      const lbl = colB.toLowerCase();
-      if (/branded/i.test(lbl))                        activeSec = 'branded';
-      else if (/fountain|beverage|bev|coffee/i.test(lbl)) activeSec = 'beverage';
-      else if (/deli/i.test(lbl))                      activeSec = 'deli';
-      else                                             activeSec = 'other';
-      return { r, dataIdx, isHeader: true, label: colB, sec: activeSec };
-    }
-    return { r, dataIdx, isHeader: false, sec: activeSec };
-  }).filter(Boolean);
-
-  // ── All Items pane: render every tagged row ──
-  const allRowsHTML = taggedRows.map(({ r, dataIdx, isHeader, label }) =>
-    isHeader ? buildHeaderRow(label) : buildDataRow(r, dataIdx)
-  ).join('');
-
-  // ── Section pane: only rows whose sec matches (headers too) ──
-  function buildSectionPane(secKey) {
-    const filtered = taggedRows.filter(x => x.sec === secKey);
-    const html = filtered.map(({ r, dataIdx, isHeader, label }) =>
-      isHeader ? buildHeaderRow(label) : buildDataRow(r, dataIdx)
-    ).join('');
-    const outCnt = filtered.filter(x => !x.isHeader && statusColIdx >= 0 && /^out$/i.test((x.r[statusColIdx]||'').trim())).length;
-    return { html, outCnt };
-  }
-
-  // Overall OUT count
-  const outCount = taggedRows.filter(x =>
-    !x.isHeader && statusColIdx >= 0 && /^out$/i.test((x.r[statusColIdx]||'').trim())
-  ).length;
+    return `<tr data-sec="${activeSec}">${cells}${purchCell}</tr>`;
+  }).join('');
 
   const SECTION_TABS = [
     { key: 'all',      label: 'All Items' },
@@ -350,23 +326,10 @@ function renderCountSheet(content, raw) {
   ];
 
   const tabButtons = SECTION_TABS.map((s, i) => {
-    const outCnt = s.key === 'all' ? outCount : buildSectionPane(s.key).outCnt;
-    return `<button class="tab-btn deli-sub-btn cs-inv-tab ${i===0?'active':''}" data-inv-sec="${s.key}" style="font-size:13px">
-      ${s.label}${outCnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${outCnt} OUT)</span>` : ''}
+    const cnt = outCount[s.key] || 0;
+    return `<button class="tab-btn deli-sub-btn cs-inv-tab${i===0?' active':''}" data-inv-sec="${s.key}" style="font-size:13px;white-space:nowrap">
+      ${s.label}${cnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${cnt} OUT)</span>` : ''}
     </button>`;
-  }).join('');
-
-  const tabPanes = SECTION_TABS.map((s, i) => {
-    const html = s.key === 'all' ? allRowsHTML : buildSectionPane(s.key).html;
-    const empty = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:24px">No items in this section yet.</td></tr>`;
-    return `<div class="cs-inv-pane" data-inv-pane="${s.key}" style="${i===0?'':'display:none'}">
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>${colHeaders}</tr></thead>
-          <tbody>${html || empty}</tbody>
-        </table>
-      </div>
-    </div>`;
   }).join('');
 
   content.innerHTML = `
@@ -395,25 +358,28 @@ function renderCountSheet(content, raw) {
       </div>
 
       <!-- Section sub-tabs -->
-      <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0">
+      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
         ${tabButtons}
       </div>
 
-      <div id="save-all-counts-status" style="font-size:13px;margin:8px 0;display:none"></div>
-
-      <!-- Section panes -->
-      ${tabPanes}
+      <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="cs-main-table">
+          <thead><tr>${colHeaders}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
     </div>
   `;
 
-  // ── Section sub-tab switching ──
+  // ── Section tab filtering (show/hide rows by data-sec) ──
   content.querySelectorAll('.cs-inv-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       content.querySelectorAll('.cs-inv-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const sec = btn.dataset.invSec;
-      content.querySelectorAll('.cs-inv-pane').forEach(p => {
-        p.style.display = p.dataset.invPane === sec ? '' : 'none';
+      content.querySelectorAll('#cs-main-table tbody tr').forEach(tr => {
+        tr.style.display = (sec === 'all' || tr.dataset.sec === sec) ? '' : 'none';
       });
     });
   });
