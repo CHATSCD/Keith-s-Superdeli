@@ -3100,12 +3100,219 @@ function renderTraining(content) {
   `).join('');
 
   content.innerHTML = `
-    <div class="card">
+    <div class="card" style="margin-bottom:16px">
       <div class="card-title">🍦 Spaceman 6235-C — Training Materials</div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
         Tap any document to open it. Documents open in Google Drive.
       </p>
       ${cards}
     </div>
+    <div class="card">
+      <div class="card-title">📘 Deli Pro — App Training Manual</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Everything your team needs to know to use this app — food safety, cleaning logs, inventory, ordering, and more.
+      </p>
+      ${buildAppManual()}
+    </div>
   `;
+}
+
+function buildAppManual() {
+  const chapters = [
+    {
+      id: 'man-welcome', icon: '👋', color: '#1565C0',
+      title: 'Welcome — What Is This App?',
+      body: `
+        <p>Deli Pro is Keith's Superstores' all-in-one Food &amp; Beverage operations platform. It lives at the Deli Pro tab inside your store's dashboard and covers everything from inventory counts to food safety inspections.</p>
+        <p><strong>Three core modules:</strong></p>
+        <ul style="margin:8px 0 0 18px">
+          <li><strong>Deli Pro</strong> — Inventory, food cost, invoices, orders, recipes, suppliers, waste log, analytics, and this training section.</li>
+          <li><strong>Inspection</strong> — 14-section food safety compliance checklist with photo upload and PDF export.</li>
+          <li><strong>Deli Logs</strong> — Equipment cleaning logs and temperature records for every shift.</li>
+        </ul>
+        <p style="margin-top:10px">Switch between modules using the tab bar at the top (desktop) or the navigation bar at the bottom (mobile).</p>
+      `,
+    },
+    {
+      id: 'man-nav', icon: '🗺️', color: '#1565C0',
+      title: 'Getting Around the App',
+      body: `
+        <p><strong>Your store loads automatically</strong> from the URL. If you see "Loading…" in the header for more than a few seconds, check your internet connection.</p>
+        <p><strong>Desktop (tablet/computer):</strong> Use the blue tab bar near the top — Deli Pro | Inspection | Deli Logs.</p>
+        <p><strong>Mobile:</strong> Use the bottom navigation bar with icons for Deli, Inspect, and Deli Logs.</p>
+        <p><strong>Inside Deli Pro</strong>, a second row of sub-tabs lets you jump between sections: Inventory, Waste Log, Food Cost, Invoices, Suppliers, Labels, Analytics, and Training.</p>
+        <div style="background:#EBF5FF;border-left:3px solid #1565C0;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          💡 <strong>Tip:</strong> On a phone, the sub-tab row scrolls horizontally. Swipe left to see all tabs.
+        </div>
+      `,
+    },
+    {
+      id: 'man-inventory', icon: '📦', color: '#1565C0',
+      title: 'Inventory — Counting &amp; Tracking',
+      body: `
+        <p>The <strong>Inventory</strong> tab shows your current on-hand counts by category: Meat, Seafood, Produce, Dairy, Dry Goods, Frozen, Beverages, and Supplies.</p>
+        <p><strong>To update a count:</strong></p>
+        <ol style="margin:8px 0 0 18px">
+          <li>Tap the row for the item you counted.</li>
+          <li>Enter the new on-hand quantity.</li>
+          <li>Tap Save — it writes directly to the store's Google Sheet.</li>
+        </ol>
+        <p style="margin-top:10px"><strong>Daily Inv. Form</strong> — use this sub-tab to fill out the weekly inventory control form broken down by day (Sun–Sat) and department section.</p>
+        <div style="background:#FEF2F2;border-left:3px solid #CC1F2B;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          🚨 <strong>Never</strong> delete an existing row. Add new items using the Add Item button only. Deleting rows breaks the Sheet formula references.
+        </div>
+      `,
+    },
+    {
+      id: 'man-waste', icon: '🗑️', color: '#1565C0',
+      title: 'Waste Log — Logging Discarded Product',
+      body: `
+        <p>Every item that gets thrown away should be logged here. This feeds directly into food cost calculations — accurate waste logging = accurate food cost.</p>
+        <p><strong>Required fields:</strong> Date · Item # · Item Name · Section · Qty Wasted · Unit Price · Reason</p>
+        <p><strong>Common reasons:</strong> Expired, Overproduction, Temperature Failure, Damaged, Dropped, Customer Return.</p>
+        <div style="background:#EBF5FF;border-left:3px solid #1565C0;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          💡 Log waste as it happens — don't batch it at the end of the shift. You'll forget items and your food cost will look better than it is.
+        </div>
+      `,
+    },
+    {
+      id: 'man-foodcost', icon: '📊', color: '#1565C0',
+      title: 'Food Cost Calculator',
+      body: `
+        <p>The Food Cost tab is typically filled out <strong>weekly by the department manager</strong>. It calculates your food cost percentage based on:</p>
+        <ul style="margin:8px 0 0 18px">
+          <li>Weekly sales</li>
+          <li>Beginning inventory (Deli, Fountain, Branded)</li>
+          <li>Purchases by vendor (Hunt Brothers, Icee, Ben E. Keith)</li>
+          <li>Cost of Goods Sold (COGS)</li>
+        </ul>
+        <p style="margin-top:10px">The app calculates Food Cost % automatically. The coordinator can see every store's food cost from the Coordinator Dashboard in real time.</p>
+        <div style="background:#F0FDF4;border-left:3px solid #16A34A;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          ✅ A well-managed deli targets food cost in the range set by your coordinator. Ask your manager what your store's target is.
+        </div>
+      `,
+    },
+    {
+      id: 'man-invoices', icon: '🧾', color: '#1565C0',
+      title: 'Invoices &amp; Orders',
+      body: `
+        <p><strong>Invoices tab:</strong> Log every vendor invoice as it arrives. Fields: Date · Vendor · Invoice # · Amount · Items · Notes. This creates an auditable paper trail and feeds into food cost.</p>
+        <p><strong>To add an invoice:</strong></p>
+        <ol style="margin:8px 0 0 18px">
+          <li>Tap <em>Add Invoice</em>.</li>
+          <li>Fill in all required fields.</li>
+          <li>Tap Save. The entry appears in the list and in your Sheet.</li>
+        </ol>
+        <p style="margin-top:10px"><strong>Orders tab</strong> (manager access): Build and track orders by vendor. Status options: Pending → Ordered → Received (or Cancelled / Back-Order). Always update the status when product arrives.</p>
+      `,
+    },
+    {
+      id: 'man-inspection', icon: '✅', color: '#CC1F2B',
+      title: 'Food Safety Inspections',
+      body: `
+        <p>Switch to the <strong>Inspection</strong> module (tab bar or bottom nav). Inspections cover <strong>14 sections</strong> of your deli department.</p>
+        <p><strong>Each section is pass/fail:</strong></p>
+        <ul style="margin:8px 0 0 18px">
+          <li>🟢 <strong>Pass</strong> — standards met</li>
+          <li>🔴 <strong>Fail</strong> — corrective action required</li>
+          <li>📷 <strong>Photos</strong> — attach a photo to any section for documentation</li>
+        </ul>
+        <p style="margin-top:10px"><strong>After completing all 14 sections</strong>, tap Submit to save the record. You can also export a PDF copy for your files.</p>
+        <div style="background:#FEF2F2;border-left:3px solid #CC1F2B;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          🚨 Every section must have an answer — even if the answer is N/A. Blank sections are automatically treated as non-compliant by the coordinator dashboard.
+        </div>
+      `,
+    },
+    {
+      id: 'man-logs', icon: '🛠️', color: '#1565C0',
+      title: 'Deli Logs — Cleaning &amp; Temperatures',
+      body: `
+        <p>Switch to the <strong>Deli Logs</strong> module. Two types of logs live here:</p>
+        <p><strong>1. Equipment Cleaning Logs</strong> — mark each piece of equipment as cleaned after each session. Equipment tracked includes: Bakery Case, Pretzel Warmer, Tea Bubbler, prep surfaces, and slicers.</p>
+        <p><strong>2. Temperature Logs</strong> — record refrigerator and freezer temps at the <em>start</em> and <em>end</em> of every shift.</p>
+        <p><strong>To log a temp reading:</strong></p>
+        <ol style="margin:8px 0 0 18px">
+          <li>Select the unit (e.g. "Main Cooler").</li>
+          <li>Enter the current temperature.</li>
+          <li>Tap Save — your name and timestamp are auto-recorded.</li>
+        </ol>
+        <div style="background:#FFF8E1;border-left:3px solid #F59E0B;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          ⚠️ If a unit reads above 41°F (fridge) or above 0°F (freezer) — <strong>notify your manager immediately</strong> and add a note in the log. Do not wait.
+        </div>
+      `,
+    },
+    {
+      id: 'man-labels', icon: '🏷️', color: '#1565C0',
+      title: 'Labels — Printing Product Labels',
+      body: `
+        <p>The <strong>Labels</strong> sub-tab inside Deli Pro lets you generate and print date labels for prepped product.</p>
+        <p>Select a product, enter the prep date and use-by date, and print directly to your label printer. Every prepped item leaving your counter should have a label — no label means no accountability.</p>
+        <div style="background:#EBF5FF;border-left:3px solid #1565C0;border-radius:6px;padding:12px 14px;margin-top:10px;font-size:13px">
+          💡 Labels can also be accessed directly at <code>/labels.html</code> on the same domain — bookmarkable for quick access from a prep station device.
+        </div>
+      `,
+    },
+    {
+      id: 'man-tips', icon: '⚡', color: '#B8860B',
+      title: 'Quick Tips &amp; Common Mistakes',
+      body: `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#1565C0;color:#fff">
+              <th style="padding:8px 12px;text-align:left;border-radius:6px 0 0 0">Mistake</th>
+              <th style="padding:8px 12px;text-align:left;border-radius:0 6px 0 0">The Fix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #DDE3ED">
+              <td style="padding:9px 12px">Forgetting to log temperatures</td>
+              <td style="padding:9px 12px">Set a phone alarm at shift start and end — 2 minutes is all it takes</td>
+            </tr>
+            <tr style="border-bottom:1px solid #DDE3ED;background:#F5F7FA">
+              <td style="padding:9px 12px">Wrong unit of measure on inventory</td>
+              <td style="padding:9px 12px">Check whether the item is tracked in lbs, cases, or units before saving</td>
+            </tr>
+            <tr style="border-bottom:1px solid #DDE3ED">
+              <td style="padding:9px 12px">Leaving inspection sections blank</td>
+              <td style="padding:9px 12px">Every section needs a Pass / Fail — blank = auto-fail on coordinator view</td>
+            </tr>
+            <tr style="border-bottom:1px solid #DDE3ED;background:#F5F7FA">
+              <td style="padding:9px 12px">Submitting an order without manager approval</td>
+              <td style="padding:9px 12px">Always get manager sign-off before hitting Submit on any order</td>
+            </tr>
+            <tr>
+              <td style="padding:9px 12px">Not logging waste as it happens</td>
+              <td style="padding:9px 12px">Log it immediately — end-of-shift batching causes inaccurate food cost</td>
+            </tr>
+          </tbody>
+        </table>
+      `,
+    },
+  ];
+
+  return chapters.map(ch => `
+    <div style="margin-bottom:8px;border:1.5px solid #DDE3ED;border-radius:10px;overflow:hidden">
+      <button
+        onclick="(function(btn){
+          const body = btn.nextElementSibling;
+          const arrow = btn.querySelector('.man-arrow');
+          const open = body.style.display !== 'none';
+          body.style.display = open ? 'none' : 'block';
+          arrow.textContent = open ? '▸' : '▾';
+        })(this)"
+        style="
+          width:100%;display:flex;align-items:center;gap:12px;
+          background:#F5F7FA;border:none;cursor:pointer;
+          padding:13px 16px;text-align:left;
+        "
+      >
+        <span style="font-size:20px;flex-shrink:0">${ch.icon}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:${ch.color};text-transform:uppercase;letter-spacing:.4px;flex:1">${ch.title}</span>
+        <span class="man-arrow" style="color:#6B7280;font-size:14px;flex-shrink:0">▸</span>
+      </button>
+      <div style="display:none;padding:16px 18px;font-size:14px;line-height:1.65;color:#1A202C;border-top:1px solid #DDE3ED">
+        ${ch.body}
+      </div>
+    </div>
+  `).join('');
 }
