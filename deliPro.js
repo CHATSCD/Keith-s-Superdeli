@@ -1263,13 +1263,16 @@ function renderInventory(content, rows) {
 
   // Detect section headers and assign each row a section
   let activeSec = 'deli';
+  let hasSections = false;
   const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
   const taggedRows = dataRows.map(r => {
     const colA = (r[0] || '').trim();
     const colB = (r[1] || '').trim();
     const nonEmpty = r.filter(c => (c || '').toString().trim() !== '').length;
-    // Section header row: no count-by, has item name, most cols empty
-    if (!colA && colB && nonEmpty <= 2) {
+    // Section header row: has item/label text but no numeric data columns
+    const hasNumericData = !isNaN(parseFloat(r[4])) && parseFloat(r[4]) > 0;
+    if (colB && !hasNumericData && nonEmpty <= 3 && /branded|deli|beverage|bev|fountain|coffee|bibs/i.test(colB)) {
+      hasSections = true;
       const lbl = colB.toLowerCase();
       if      (/branded/i.test(lbl))                              activeSec = 'branded';
       else if (/fountain|beverage|bev|coffee|bibs/i.test(lbl))   activeSec = 'beverage';
@@ -1277,7 +1280,7 @@ function renderInventory(content, rows) {
       return { r, sec: activeSec, isHeader: true };
     }
     const oh = parseFloat(r[4]) || 0;
-    if (oh === 0 && (r[1]||'').trim()) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
+    if (oh === 0 && colB) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
     return { r, sec: activeSec, isHeader: false };
   });
 
@@ -1368,8 +1371,8 @@ function renderInventory(content, rows) {
         <div id="inv-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
-      <!-- Section sub-tabs -->
-      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
+      <!-- Section sub-tabs (only shown when sheet has section headers) -->
+      <div id="inv-sec-nav" style="display:${hasSections?'flex':'none'};gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
         ${tabButtons}
       </div>
 
