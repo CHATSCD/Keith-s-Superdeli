@@ -1321,9 +1321,9 @@ function renderInventory(content, rows) {
 
   const INV_SECTION_TABS = [
     { key: 'all',      label: 'All Items' },
-    { key: 'deli',     label: '🥩 Deli' },
-    { key: 'branded',  label: '🍕 Branded Deli' },
-    { key: 'beverage', label: '☕ Beverage Station' },
+    { key: 'deli',     label: 'Deli' },
+    { key: 'branded',  label: 'Branded Deli' },
+    { key: 'beverage', label: 'Fountain' },
   ];
 
   const tabButtons = INV_SECTION_TABS.map((s, i) => {
