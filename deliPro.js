@@ -122,13 +122,21 @@ async function switchDeliTab(container, tabId) {
 
     content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading inventory sections…</p></div>`;
 
+    // Fallback tab name variants for each section (some stores use different capitalization/naming)
+    const TAB_ALIASES = {
+      'Deli':        ['Deli', 'DELI', 'Deli Counter', 'Deli Items', 'Deli Inventory'],
+      'Branded Deli':['Branded Deli', 'BRANDED DELI', 'Branded', 'Hunt Brothers', 'HB'],
+      'Fountain':    ['Fountain', 'FOUNTAIN', 'Beverage', 'Beverages', 'Beverage Station', 'Icee', 'ICEE'],
+    };
     const sections = await Promise.all(INV_SECTION_DEFS.map(async def => {
-      try {
-        const res = await sheetsGet(deliState.sa, sheetId, `${def.tabName}!A1:Z1000`);
-        return { ...def, sheetId, rows: res.values || [] };
-      } catch (_) {
-        return { ...def, sheetId, rows: [] };
+      const aliases = TAB_ALIASES[def.tabName] || [def.tabName];
+      for (const name of aliases) {
+        try {
+          const res = await sheetsGet(deliState.sa, sheetId, `${name}!A1:Z1000`);
+          if (res.values && res.values.length > 0) return { ...def, sheetId, rows: res.values, tabName: name };
+        } catch (_) { /* try next alias */ }
       }
+      return { ...def, sheetId, rows: [] };
     }));
 
     // Cache combined for waste log item lookup
@@ -224,8 +232,15 @@ function renderCountSheetSections(content, sections) {
     if (!raw || raw.length === 0) return { headerRow: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, statusColIdx: -1, numCols: 7, headers: [] };
 
     let headerRowIdx = 0;
+    let headerFound = false;
     for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
-      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; break; }
+      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; headerFound = true; break; }
+    }
+    // If no explicit header pattern, check if row 0 is a title (≤2 cells) and row 1 has more — skip title
+    if (!headerFound) {
+      const row0Cells = (raw[0] || []).filter(c => (c || '').trim()).length;
+      const row1Cells = (raw[1] || []).filter(c => (c || '').trim()).length;
+      if (row0Cells <= 2 && row1Cells >= 3) headerRowIdx = 1;
     }
     const headerRow = raw[headerRowIdx] || [];
     const dataRows  = raw.slice(headerRowIdx + 1);
