@@ -1782,6 +1782,8 @@ function renderTransferForm(container) {
     } catch(_) {}
   });
 }
+
+function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
   const dayLabels = getDayDates(weekOf);
 
   // Build count table HTML (simplified text version of the count sheet)
