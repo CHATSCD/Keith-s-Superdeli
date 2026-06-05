@@ -729,5 +729,15 @@ function exportInspectionPDF(storeNum, storeName, container) {
   doc.text(safeText('Inspector Signature'), L, y + 12);
   doc.text(safeText('Manager Signature'), L + 260, y + 12);
 
+  // Page numbers
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'normal');
+    doc.text(safeText(`Page ${p} of ${pageCount}`), L + W - 48, 775);
+  }
+
   doc.save(safeText(`Inspection_Store${storeNum}_${date}.pdf`));
 }

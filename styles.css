@@ -958,6 +958,62 @@ body {
 .entry-form-area .form-grid { margin-bottom: 0; }
 
 
+/* ══════════════════════════════════════════
+   COORDINATOR STORE TILES
+══════════════════════════════════════════ */
+.store-tile {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  min-width: 72px;
+  text-align: center;
+  background: var(--white);
+  border: 1.5px solid var(--gray);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  font-family: inherit;
+  gap: 2px;
+}
+.store-tile:hover { background: #EFF6FF; border-color: var(--ks-blue); }
+.store-tile.active {
+  background: var(--ks-blue);
+  border-color: var(--ks-blue);
+  color: var(--white);
+}
+.store-tile.active span { color: rgba(255,255,255,.8) !important; }
+
+/* ══════════════════════════════════════════
+   PRINT — collapse whitespace to save paper
+══════════════════════════════════════════ */
+@media print {
+  #app-header, #tab-nav, #bottom-nav, .sticky-sub,
+  .btn-row, #insp-status, .photo-area, .filter-bar,
+  .yn-btn, .section-badge, #followup-banner { display: none !important; }
+
+  body { background: #fff; padding-bottom: 0; }
+
+  .card {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    box-shadow: none;
+    border: 1px solid #ccc;
+    page-break-inside: avoid;
+  }
+  .card-title { margin-bottom: 4px; padding-bottom: 4px; font-size: 13px; }
+  .checklist-item { padding: 2px 0; }
+  .item-question { margin-bottom: 2px; font-size: 12px; }
+  .form-row { margin-bottom: 4px; }
+  .form-row label { font-size: 10px; }
+  .form-row input, .form-row select, .form-row textarea {
+    padding: 4px 8px; min-height: 28px; font-size: 12px;
+  }
+  .data-table td, .data-table th { padding: 4px 8px; font-size: 11px; }
+  .loading-state, .empty-state { padding: 12px; }
+}
+
 /* ── Maintenance Log sub-tabs (white background — needs dark text) ── */
 #log-tab-nav {
   background: var(--bg);

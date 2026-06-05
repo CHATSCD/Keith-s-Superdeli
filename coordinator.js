@@ -3,7 +3,6 @@
 
 async function coordinatorInit(container, serviceAccount) {
   container.innerHTML = buildCoordinatorShell();
-  await loadCoordinatorData(container, serviceAccount);
 
   // Use first available store sheet as the central admin/managers sheet
   const adminSheetId = (typeof STORES !== 'undefined')
@@ -18,6 +17,27 @@ async function coordinatorInit(container, serviceAccount) {
   if (adminSheetId) {
     initManagerRegistration(serviceAccount, adminSheetId);
   }
+
+  // ── Store picker: click a tile to load that store's data ──
+  document.getElementById('store-grid')?.addEventListener('click', async e => {
+    const tile = e.target.closest('.store-tile');
+    if (!tile) return;
+    const storeNum = tile.dataset.store;
+    document.querySelectorAll('.store-tile').forEach(t => t.classList.remove('active'));
+    tile.classList.add('active');
+    await loadSingleStore(container, serviceAccount, storeNum);
+  });
+
+  // ── Load All: fetch all stores and show chain-wide table ──
+  document.getElementById('load-all-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('load-all-btn');
+    btn.disabled = true; btn.textContent = 'Loading…';
+    document.getElementById('store-detail-wrap').style.display = 'none';
+    document.getElementById('coord-chain-section').style.display = '';
+    await loadCoordinatorData(container, serviceAccount);
+    btn.disabled = false; btn.textContent = 'Reload Chain Stats';
+    document.getElementById('export-coord-pdf').style.display = '';
+  });
 
   // ── Orders ──
   const orderStoreEl  = document.getElementById('coord-order-store');
@@ -145,53 +165,95 @@ async function coordinatorInit(container, serviceAccount) {
 }
 
 function buildCoordinatorShell() {
+  const stores    = typeof STORES !== 'undefined' ? STORES : {};
+  const storeKeys = Object.keys(stores).sort((a, b) => Number(a) - Number(b));
+
+  const storeGridHTML = storeKeys.length === 0
+    ? '<p style="color:var(--muted);font-size:13px">No stores configured.</p>'
+    : storeKeys.map(n => {
+        const s = stores[n];
+        return `<button class="store-tile" data-store="${n}">
+          <span style="font-weight:700;font-size:13px">#${n}</span>
+          ${s && s.name ? `<span style="font-weight:400;font-size:11px;color:var(--muted);display:block;line-height:1.2">${s.name}</span>` : ''}
+        </button>`;
+      }).join('');
+
   return `
     <div class="card">
       <div class="card-title" style="font-size:18px">Food &amp; Beverage Department Dashboard</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:0">
-        Showing all stores. Data pulled live from each store's Google Sheet.
-      </p>
-    </div>
-
-    <div class="filter-bar card" style="margin-bottom:12px">
-      <div class="form-row">
-        <label>Filter by Status</label>
-        <select id="filter-status">
-          <option value="all">All</option>
-          <option value="Overdue">Overdue</option>
-          <option value="Pending">Pending</option>
-          <option value="Clear">Clear</option>
-        </select>
-      </div>
-      <div class="form-row">
-        <label>Min Score %</label>
-        <input type="number" id="filter-score" placeholder="0" min="0" max="100">
-      </div>
-      <div class="form-row">
-        <label>Search Store</label>
-        <input type="text" id="filter-search" placeholder="# or city">
-      </div>
-      <div style="display:flex;align-items:flex-end">
-        <button class="btn btn-primary btn-sm" id="apply-filters">Apply</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary btn-sm" id="load-all-btn">Load All Stores (Chain Stats)</button>
+        <button class="btn btn-outline btn-sm" id="export-coord-pdf" style="display:none">Export Report PDF</button>
       </div>
     </div>
 
     <div id="coord-alerts"></div>
 
-    <div class="card">
-      <div class="card-title">
-        Inspection Summary
-        <button class="btn btn-outline btn-sm" id="export-coord-pdf">Export Report PDF</button>
+    <!-- Store picker — click a store to load its data -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">Stores — Click to Load</div>
+      <div id="store-grid" style="display:flex;flex-wrap:wrap;gap:8px">${storeGridHTML}</div>
+    </div>
+
+    <!-- Single-store detail panel (hidden until a tile is clicked) -->
+    <div id="store-detail-wrap" style="display:none">
+      <div class="card">
+        <div class="card-title">
+          <span id="store-detail-title">Store Detail</span>
+          <span id="store-detail-links" style="display:flex;gap:6px"></span>
+        </div>
+        <div id="store-detail-content">
+          <div class="loading-state"><div class="spinner"></div><p>Loading…</p></div>
+        </div>
       </div>
-      <div class="table-wrap" id="coord-table-wrap">
-        <div class="loading-state"><div class="spinner"></div><p>Loading store data...</p></div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">Food Cost</div>
+        <div id="store-fc-content">
+          <div class="loading-state"><div class="spinner"></div><p>Loading…</p></div>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:12px">
-      <div class="card-title">Food Cost Summary</div>
-      <div class="table-wrap" id="food-cost-table-wrap">
-        <div class="loading-state"><div class="spinner"></div><p>Loading food cost data...</p></div>
+    <!-- Chain-wide section (hidden until Load All is clicked) -->
+    <div id="coord-chain-section" style="display:none">
+      <!-- Compliance stats populated after load -->
+      <div id="coord-compliance" class="card" style="margin-bottom:12px"></div>
+
+      <div class="filter-bar card" style="margin-bottom:12px">
+        <div class="form-row">
+          <label>Filter by Status</label>
+          <select id="filter-status">
+            <option value="all">All</option>
+            <option value="Overdue">Overdue</option>
+            <option value="Pending">Pending</option>
+            <option value="Clear">Clear</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Min Score %</label>
+          <input type="number" id="filter-score" placeholder="0" min="0" max="100">
+        </div>
+        <div class="form-row">
+          <label>Search Store</label>
+          <input type="text" id="filter-search" placeholder="# or city">
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary btn-sm" id="apply-filters">Apply</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Inspection Summary — All Stores</div>
+        <div class="table-wrap" id="coord-table-wrap">
+          <div class="loading-state"><div class="spinner"></div><p>Loading store data...</p></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">Food Cost Summary</div>
+        <div class="table-wrap" id="food-cost-table-wrap">
+          <div class="loading-state"><div class="spinner"></div><p>Loading food cost data...</p></div>
+        </div>
       </div>
     </div>
 
@@ -333,6 +395,148 @@ async function batchSettled(items, fn, batchSize = 3, onProgress) {
   return results;
 }
 
+// Load a single store's inspection + food cost data into the detail panel
+async function loadSingleStore(container, serviceAccount, storeNum) {
+  const store = (typeof STORES !== 'undefined' && STORES[storeNum]) ? STORES[storeNum] : null;
+  const sheetId = store?.sheetId || '';
+
+  const detailWrap    = document.getElementById('store-detail-wrap');
+  const detailTitle   = document.getElementById('store-detail-title');
+  const detailLinks   = document.getElementById('store-detail-links');
+  const detailContent = document.getElementById('store-detail-content');
+  const fcContent     = document.getElementById('store-fc-content');
+
+  detailWrap.style.display = '';
+  detailTitle.textContent  = `Store #${storeNum}${store?.name ? ' — ' + store.name : ''}`;
+  detailLinks.innerHTML    = `
+    <a href="/?store=${storeNum}" style="padding:3px 10px;background:var(--ks-blue);color:#fff;border-radius:5px;font-size:11px;text-decoration:none">Open Store</a>
+    ${sheetId ? `<a href="https://docs.google.com/spreadsheets/d/${sheetId}" target="_blank" rel="noopener" style="padding:3px 10px;background:#0F9D58;color:#fff;border-radius:5px;font-size:11px;text-decoration:none">Sheet</a>` : ''}
+  `;
+  detailContent.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Loading inspection history…</p></div>';
+  fcContent.innerHTML     = '<div class="loading-state"><div class="spinner"></div><p>Loading food cost…</p></div>';
+
+  detailWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (!sheetId) {
+    detailContent.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No sheet configured for this store.</p>';
+    fcContent.innerHTML     = '';
+    return;
+  }
+
+  // Fetch inspection history and food cost in parallel
+  const [inspRes, fcRes] = await Promise.allSettled([
+    sheetsGet(serviceAccount, sheetId, 'Inspections!A2:N200'),
+    sheetsGet(serviceAccount, sheetId, 'Deli Pro!A1:Z5'),
+  ]);
+
+  // Inspection history
+  if (inspRes.status === 'fulfilled') {
+    const rows = (inspRes.value.values || []).reverse(); // most recent first
+    if (rows.length === 0) {
+      detailContent.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No inspections on record.</p>';
+    } else {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const rowsHTML = rows.map(r => {
+        const status = r[11] || '';
+        const date   = r[2]  || '--';
+        const score  = r[5]  || '--';
+        const nos    = r[7]  || '0';
+        const followup = r[10] || '--';
+        const fu     = new Date(followup);
+        const diff   = !isNaN(fu) ? Math.round((fu - today) / 86400000) : null;
+        const computed = status || (diff === null ? 'Clear' : diff < 0 ? 'Overdue' : diff <= 3 ? 'Pending' : 'Clear');
+        const sCls   = computed === 'Overdue' ? 'status-overdue' : computed === 'Pending' ? 'status-pending' : 'status-clear';
+        return `<tr>
+          <td>${date}</td>
+          <td>${r[4]||'--'}</td>
+          <td>${score}</td>
+          <td>${nos}</td>
+          <td>${followup}</td>
+          <td class="${sCls}">${computed}</td>
+        </tr>`;
+      }).join('');
+      detailContent.innerHTML = `
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Inspector</th><th>Score %</th><th>NOs</th><th>Follow-up</th><th>Status</th></tr></thead>
+            <tbody>${rowsHTML}</tbody>
+          </table>
+        </div>`;
+    }
+  } else {
+    detailContent.innerHTML = `<p style="color:var(--red);font-size:13px">Error loading inspections: ${inspRes.reason?.message}</p>`;
+  }
+
+  // Food cost
+  if (fcRes.status === 'fulfilled') {
+    const val = fcRes.value.values?.[1]?.[1] || '--';
+    fcContent.innerHTML = `<p style="font-size:14px"><strong>Food Cost:</strong> ${val}</p>`;
+  } else {
+    fcContent.innerHTML = '<p style="color:var(--muted);font-size:13px">No food cost data.</p>';
+  }
+}
+
+// Render chain-wide compliance stats after all stores are loaded
+function renderComplianceStats(rows) {
+  const el = document.getElementById('coord-compliance');
+  if (!el) return;
+
+  const total    = rows.length;
+  const noData   = rows.filter(r => r.status === 'No Data' || r.status === 'Error').length;
+  const withData = total - noData;
+
+  // Compute timing status for each store that has data
+  const today = new Date(); today.setHours(0,0,0,0);
+  let onTime = 0, late = 0, pending = 0;
+  rows.forEach(r => {
+    if (r.status === 'No Data' || r.status === 'Error') return;
+    const computed = r.status || computeStatus(r.followup);
+    if (computed === 'Clear')   onTime++;
+    else if (computed === 'Overdue') late++;
+    else if (computed === 'Pending') pending++;
+  });
+
+  const pct = n => withData > 0 ? Math.round((n / withData) * 100) : 0;
+
+  // Compute average score across stores with scores
+  const scored = rows.filter(r => r.score && parseInt(r.score) > 0);
+  const avgScore = scored.length > 0
+    ? Math.round(scored.reduce((s, r) => s + parseInt(r.score), 0) / scored.length)
+    : null;
+
+  el.innerHTML = `
+    <div class="card-title">Inspection Compliance — ${total} Store${total!==1?'s':''}</div>
+    <div class="stats-row" style="margin-bottom:0">
+      <div class="stat-pill">
+        <div class="stat-pill-label">On Time</div>
+        <div class="stat-pill-value green">${pct(onTime)}%</div>
+        <div style="font-size:11px;color:var(--muted)">${onTime} store${onTime!==1?'s':''}</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label">Late / Pending</div>
+        <div class="stat-pill-value amber">${pct(pending + late)}%</div>
+        <div style="font-size:11px;color:var(--muted)">${pending + late} store${(pending+late)!==1?'s':''}</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label">Overdue</div>
+        <div class="stat-pill-value red">${pct(late)}%</div>
+        <div style="font-size:11px;color:var(--muted)">${late} store${late!==1?'s':''}</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label">Not at All</div>
+        <div class="stat-pill-value red">${total > 0 ? Math.round((noData/total)*100) : 0}%</div>
+        <div style="font-size:11px;color:var(--muted)">${noData} store${noData!==1?'s':''}</div>
+      </div>
+      ${avgScore !== null ? `
+      <div class="stat-pill">
+        <div class="stat-pill-label">Avg Score</div>
+        <div class="stat-pill-value ${avgScore>=90?'green':avgScore>=75?'amber':'red'}">${avgScore}%</div>
+        <div style="font-size:11px;color:var(--muted)">${scored.length} store${scored.length!==1?'s':''}</div>
+      </div>` : ''}
+    </div>
+  `;
+}
+
 async function loadCoordinatorData(container, serviceAccount) {
   const storeEntries = Object.entries(STORES).filter(([, s]) => s.sheetId);
 
@@ -400,6 +604,7 @@ async function loadCoordinatorData(container, serviceAccount) {
       </div>`;
   }
 
+  renderComplianceStats(coordAllRows);
   renderCoordTable(container, coordAllRows);
   renderAlerts(container, coordAllRows);
   await loadFoodCostSummary(container, storeEntries, serviceAccount);
@@ -651,6 +856,16 @@ function exportCoordPDF(rows) {
     });
     y += 16;
   });
+
+  // Page numbers
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'normal');
+    doc.text(safeText(`Page ${p} of ${pageCount}`), L + W - 48, 570);
+  }
 
   doc.save(safeText(`Coordinator_Report_${new Date().toISOString().split('T')[0]}.pdf`));
 }
