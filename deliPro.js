@@ -1007,11 +1007,11 @@ function renderDailyInvForm(content, sheetRows) {
         </div>
       </div>
 
-      <!-- Self-Registration banner (shown if no managers registered for this store) -->
+      <!-- Self-Registration banner (shown if no leads registered for this store) -->
       <div id="di-register-banner" style="display:none;margin-bottom:12px">
         <div class="card" style="border:2px solid var(--ks-blue)">
-          <div class="card-title" style="font-size:13px">Register Your Manager PIN</div>
-          <p style="font-size:13px;color:var(--muted);margin:0 0 10px">No manager is registered for Store #${deliState.storeNum} yet. Register your PIN below to sign ICF forms, transfers, and close the week.</p>
+          <div class="card-title" style="font-size:13px">Register Your Lead PIN</div>
+          <p style="font-size:13px;color:var(--muted);margin:0 0 10px">No lead is registered for Store #${deliState.storeNum} yet. Register your PIN below to sign ICF forms, transfers, and close the week.</p>
           <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-row"><label>Full Name</label><input type="text" id="self-reg-name" placeholder="Your name" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
             <div class="form-row"><label>Email</label><input type="email" id="self-reg-email" placeholder="your@email.com" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
@@ -1019,7 +1019,7 @@ function renderDailyInvForm(content, sheetRows) {
             <div class="form-row"><label>Confirm PIN</label><input type="password" id="self-reg-pin2" maxlength="6" placeholder="••••" style="width:100px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
             <div class="form-row"><label>Role</label>
               <select id="self-reg-role" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit">
-                <option>Store Manager</option><option>Assistant Manager</option><option>Deli Manager</option>
+                <option>Team Lead</option><option>Lead A</option><option>Deli Lead</option>
               </select>
             </div>
             <button class="btn btn-primary btn-sm" id="self-reg-btn">Register</button>
@@ -1046,7 +1046,7 @@ function renderDailyInvForm(content, sheetRows) {
         <p style="font-size:13px;margin:0 0 10px">This will lock all counts, ICF entries, and transfers for this week and email a full summary to the district office. This cannot be undone.</p>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
           <div class="form-row">
-            <label>Your Manager PIN</label>
+            <label>Your Lead PIN</label>
             <input type="password" id="di-close-pin" maxlength="6" placeholder="••••" style="width:100px;padding:8px 10px;border:1.5px solid var(--red);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit">
           </div>
           <button class="btn btn-sm" id="di-close-confirm-btn" style="background:var(--red);color:#fff;border:none">Confirm Close Week</button>
@@ -1342,14 +1342,14 @@ function renderDailyInvForm(content, sheetRows) {
     }
   });
 
-  // ── Self-Registration (shown if no manager registered for this store) ──
+  // ── Self-Registration (shown if no lead registered for this store) ──
   (async () => {
     if (!deliState.sheetId) return;
     try {
       const res  = await sheetsGet(deliState.sa, deliState.sheetId, 'Managers!A2:E200');
       const rows = (res.values || []);
-      const hasManager = rows.some(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
-      if (!hasManager) content.querySelector('#di-register-banner').style.display = 'block';
+      const hasLead = rows.some(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
+      if (!hasLead) content.querySelector('#di-register-banner').style.display = 'block';
     } catch(_) {
       content.querySelector('#di-register-banner').style.display = 'block';
     }
@@ -1466,7 +1466,7 @@ function renderICFForm(container) {
 
       <!-- Signature -->
       <div style="margin-top:16px;padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
-        <div style="font-weight:600;font-size:13px;margin-bottom:10px">Manager Sign-Off</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px">Lead Sign-Off</div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
           <div class="form-row">
             <label>Your PIN</label>
@@ -1605,9 +1605,9 @@ function renderTransferForm(container) {
       <!-- Signatures -->
       <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px" id="tf-sig-grid">
 
-        <!-- Transferring Manager -->
+        <!-- Transferring Lead -->
         <div style="padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
-          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Transferring Manager Sign-Off</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Transferring Lead Sign-Off</div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-row">
               <label>PIN</label>
@@ -1619,10 +1619,10 @@ function renderTransferForm(container) {
           <div id="tf-from-signed" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green);color:#fff;border-radius:6px;font-size:12px;font-weight:600"></div>
         </div>
 
-        <!-- Receiving Manager -->
+        <!-- Receiving Lead -->
         <div style="padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
-          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Receiving Manager Sign-Off</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Transferring manager must sign first.</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Receiving Lead Sign-Off</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Transferring lead must sign first.</div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="form-row">
               <label>PIN</label>
@@ -1658,7 +1658,7 @@ function renderTransferForm(container) {
   let fromManagerEmail = '';
   let savedRowId = null;
 
-  // ── Transferring manager sign ──
+  // ── Transferring lead sign ──
   container.querySelector('#tf-from-sign-btn').addEventListener('click', async () => {
     const btn      = container.querySelector('#tf-from-sign-btn');
     const statusEl = container.querySelector('#tf-from-status');
@@ -1732,7 +1732,7 @@ function renderTransferForm(container) {
       const toBtn = container.querySelector('#tf-to-sign-btn');
       toPin.disabled = false; toPin.style.opacity = '1';
       toBtn.disabled = false; toBtn.style.opacity = '1';
-      container.querySelector('#tf-to-status').innerHTML = '<span style="color:var(--muted)">Transferring manager signed. Receiving manager can now sign.</span>';
+      container.querySelector('#tf-to-status').innerHTML = '<span style="color:var(--muted)">Transferring lead signed. Receiving lead can now sign.</span>';
 
       // Lock form fields
       container.querySelectorAll('#tf-table input').forEach(i => i.disabled = true);
@@ -1744,7 +1744,7 @@ function renderTransferForm(container) {
     }
   });
 
-  // ── Receiving manager sign ──
+  // ── Receiving lead sign ──
   container.querySelector('#tf-to-sign-btn').addEventListener('click', async () => {
     const btn      = container.querySelector('#tf-to-sign-btn');
     const statusEl = container.querySelector('#tf-to-status');

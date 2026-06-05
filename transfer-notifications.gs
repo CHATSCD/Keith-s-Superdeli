@@ -40,7 +40,7 @@ function handleTransferComplete(e, sheet) {
   var toSigned    = data[14] || '';
   var completedAt = data[15] || new Date().toLocaleString();
 
-  // Look up manager emails
+  // Look up lead emails
   var ss       = e.source;
   var mgrsSheet = ss.getSheetByName('Managers');
   var fromEmail = '', toEmail = '';
@@ -61,8 +61,8 @@ function handleTransferComplete(e, sheet) {
     '',
     'Items: ' + description,
     '',
-    'Transferring Manager: ' + fromSigned,
-    'Receiving Manager:    ' + toSigned,
+    'Transferring Lead: ' + fromSigned,
+    'Receiving Lead:    ' + toSigned,
     'Completed At:         ' + completedAt,
     '',
     'Full details are in the "Merchandise Transfer" tab of the Google Sheet.',

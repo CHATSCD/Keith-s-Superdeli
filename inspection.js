@@ -727,7 +727,7 @@ function exportInspectionPDF(storeNum, storeName, container) {
   doc.setTextColor(107, 114, 128);
   doc.setFont('helvetica', 'normal');
   doc.text(safeText('Inspector Signature'), L, y + 12);
-  doc.text(safeText('Manager Signature'), L + 260, y + 12);
+  doc.text(safeText('Lead Signature'), L + 260, y + 12);
 
   doc.save(safeText(`Inspection_Store${storeNum}_${date}.pdf`));
 }

@@ -196,7 +196,7 @@ const CLEANING_LOGS = {
     slots: ['6 AM', '10 AM', '2 PM', '6 PM', '10 PM', '2 AM'],
     dailyTasks: [
       'All readings recorded and in range',
-      'Alert manager if any reading is out of range',
+      'Alert lead if any reading is out of range',
       'Check door seals - no gaps',
       'Verify thermometers visible and accurate',
       'Record corrective action if any reading out of range',
@@ -215,7 +215,7 @@ const CLEANING_LOGS = {
     slots: ['6 AM', '10 AM', '2 PM', '6 PM', '10 PM', '2 AM'],
     dailyTasks: [
       'All readings recorded and in range',
-      'Alert manager if any reading is out of range',
+      'Alert lead if any reading is out of range',
       'Check door seals - no gaps',
       'Verify thermometers visible and accurate',
       'Record corrective action if any reading out of range',
@@ -1091,7 +1091,7 @@ function attachCleaningHandlers(container, storeNum, storeName, sheetId, service
       if (!alertEl) {
         alertEl = document.createElement('div');
         alertEl.className = 'out-of-range';
-        alertEl.textContent = 'OUT OF RANGE - Notify manager!';
+        alertEl.textContent = 'OUT OF RANGE - Notify lead!';
         inp.parentElement.appendChild(alertEl);
       }
     } else {
@@ -1369,7 +1369,7 @@ function exportCleaningPDF(logId, storeNum, storeName, container) {
   doc.setTextColor(107, 114, 128);
   doc.setFont('helvetica', 'normal');
   doc.text(safeText('Employee Signature'), L, y + 12);
-  doc.text(safeText('Manager / MOD Signature'), L + 260, y + 12);
+  doc.text(safeText('Lead / MOD Signature'), L + 260, y + 12);
 
   doc.save(safeText(`${log.label.replace(/ /g, '_')}_Store${storeNum}_${date}.pdf`));
 }

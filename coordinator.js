@@ -281,11 +281,11 @@ function buildCoordinatorShell() {
 
     <div class="card" style="margin-top:12px">
       <div class="card-title">
-        Manager Registration
-        <button class="btn btn-primary btn-sm" id="mgr-add-btn">+ Add Manager</button>
+        Lead Registration
+        <button class="btn btn-primary btn-sm" id="mgr-add-btn">+ Add Lead</button>
       </div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
-        Managers registered here can sign ICF and Merchandise Transfer forms using their PIN.
+        Leads registered here can sign ICF and Merchandise Transfer forms using their PIN.
       </p>
 
       <div id="mgr-add-form" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
@@ -293,25 +293,25 @@ function buildCoordinatorShell() {
           <div class="form-row"><label>Full Name</label><input type="text" id="mgr-name" placeholder="e.g. Sarah Hall"></div>
           <div class="form-row"><label>Store #</label><input type="text" id="mgr-store" placeholder="e.g. 107"></div>
           <div class="form-row"><label>PIN (4-6 digits)</label><input type="password" id="mgr-pin" maxlength="6" placeholder="••••" style="letter-spacing:4px"></div>
-          <div class="form-row"><label>Email</label><input type="email" id="mgr-email" placeholder="manager@email.com"></div>
+          <div class="form-row"><label>Email</label><input type="email" id="mgr-email" placeholder="lead@email.com"></div>
           <div class="form-row"><label>Role</label>
             <select id="mgr-role">
-              <option>Store Manager</option>
-              <option>Assistant Manager</option>
-              <option>Deli Manager</option>
-              <option>District Manager</option>
+              <option>Team Lead</option>
+              <option>Lead A</option>
+              <option>Deli Lead</option>
+              <option>Lead B</option>
             </select>
           </div>
         </div>
         <div class="btn-row">
-          <button class="btn btn-primary btn-sm" id="mgr-save-btn">Save Manager</button>
+          <button class="btn btn-primary btn-sm" id="mgr-save-btn">Save Lead</button>
           <button class="btn btn-ghost btn-sm" id="mgr-cancel-btn">Cancel</button>
         </div>
         <div id="mgr-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
       <div class="table-wrap" id="mgr-table-wrap">
-        <div class="loading-state"><div class="spinner"></div><p>Loading managers…</p></div>
+        <div class="loading-state"><div class="spinner"></div><p>Loading leads…</p></div>
       </div>
     </div>
   `;
@@ -666,7 +666,7 @@ async function loadManagers(sa, sheetId) {
     const res  = await sheetsGet(sa, sheetId, 'Managers!A1:E200');
     const rows = res.values || [];
     if (rows.length <= 1) {
-      wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No managers registered yet.</p>';
+      wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No leads registered yet.</p>';
       return;
     }
     const bodyHTML = rows.slice(1).map((r, i) => `
@@ -688,7 +688,7 @@ async function loadManagers(sa, sheetId) {
 
     wrap.querySelectorAll('.mgr-delete-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Remove this manager?')) return;
+        if (!confirm('Remove this lead?')) return;
         const rowNum = parseInt(btn.dataset.row, 10);
         btn.disabled = true; btn.textContent = '…';
         try {
@@ -702,7 +702,7 @@ async function loadManagers(sa, sheetId) {
       });
     });
   } catch(err) {
-    wrap.innerHTML = `<p style="color:var(--red);font-size:13px">Error loading managers: ${err.message}</p>`;
+    wrap.innerHTML = `<p style="color:var(--red);font-size:13px">Error loading leads: ${err.message}</p>`;
   }
 }
 
@@ -739,7 +739,7 @@ function initManagerRegistration(sa, sheetId) {
     try {
       await sheetsEnsureHeaders(sa, sheetId, 'Managers', ['Name','Store#','PIN','Email','Role']);
       await sheetsAppend(sa, sheetId, 'Managers!A1', [[name, store, pin, email, role]]);
-      statusEl.innerHTML = '<span style="color:var(--green)">✓ Manager saved.</span>';
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Lead saved.</span>';
       document.getElementById('mgr-name').value  = '';
       document.getElementById('mgr-store').value = '';
       document.getElementById('mgr-pin').value   = '';
@@ -749,7 +749,7 @@ function initManagerRegistration(sa, sheetId) {
     } catch(err) {
       statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally {
-      saveBtn.disabled = false; saveBtn.textContent = 'Save Manager';
+      saveBtn.disabled = false; saveBtn.textContent = 'Save Lead';
     }
   });
 }
