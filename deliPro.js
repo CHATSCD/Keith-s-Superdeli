@@ -130,13 +130,16 @@ async function switchDeliTab(container, tabId) {
     };
     const sections = await Promise.all(INV_SECTION_DEFS.map(async def => {
       const aliases = TAB_ALIASES[def.tabName] || [def.tabName];
+      let lastErr = null;
       for (const name of aliases) {
         try {
           const res = await sheetsGet(deliState.sa, sheetId, `${name}!A1:Z1000`);
           if (res.values && res.values.length > 0) return { ...def, sheetId, rows: res.values, tabName: name };
-        } catch (_) { /* try next alias */ }
+          // Tab exists but is empty — stop trying aliases
+          return { ...def, sheetId, rows: [], tabName: name };
+        } catch (e) { lastErr = e; /* try next alias */ }
       }
-      return { ...def, sheetId, rows: [] };
+      return { ...def, sheetId, rows: [], fetchError: lastErr ? lastErr.message : null };
     }));
 
     // Cache combined for waste log item lookup
@@ -304,7 +307,10 @@ function renderCountSheetSections(content, sections) {
       return `<tr>${cells}${purchCell}</tr>`;
     }).join('');
 
-    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small></td></tr>`;
+    const errDetail = sec.fetchError
+      ? `<br><small style="color:var(--red)">API error: ${sec.fetchError}</small>`
+      : `<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small>`;
+    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).${errDetail}</td></tr>`;
 
     return { colHdrs, rowsHTML: rowsHTML || emptyMsg, outCnt };
   }
