@@ -228,11 +228,12 @@ async function bekFetchPrices(itemNums) {
 // ════════════════════════════════════════
 
 function renderCountSheetSections(content, sections) {
-  // sections: [{ key, label, tabName, sheetId, rows }]
+  // sections: [{ key, label, tabName, sheetId, rows: string[][] }]
 
+  // Parse one section's raw rows into { headers, dataRows, countColIdx, itemNumColIdx, perColIdx, numCols }
   function parseSection(sec) {
-    const raw = sec.rows;
-    if (!raw || raw.length === 0) return { headerRow: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, statusColIdx: -1, numCols: 7, headers: [] };
+    const raw = sec.rows || [];
+    if (raw.length === 0) return { headers: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, numCols: 7, headerRowIdx: 0 };
 
     // Find header row: prefer a row with 'Count By'/'Item#' pattern; fall back to the
     // row with the most populated cells in the first 6 rows (title rows are sparse).
@@ -249,58 +250,48 @@ function renderCountSheetSections(content, sections) {
       }
     }
     const headerRow = raw[headerRowIdx] || [];
-    const dataRows  = raw.slice(headerRowIdx + 1);
+    const dataRows  = raw.slice(headerRowIdx + 1).filter(r => r.some(c => (c || '').trim()));
+
+    let numCols = headerRow.length;
+    for (let i = 0; i < dataRows.length; i++) { if (dataRows[i].length > numCols) numCols = dataRows[i].length; }
+    if (numCols < 1) numCols = 7;
 
     let countColIdx = headerRow.findIndex(h => /^on.?hand$/i.test((h||'').trim()));
-    if (countColIdx < 0) countColIdx = 4;
+    if (countColIdx < 0) countColIdx = Math.min(4, numCols - 1);
     let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
-    if (itemNumColIdx < 0) itemNumColIdx = 2;
+    if (itemNumColIdx < 0) itemNumColIdx = Math.min(2, numCols - 1);
     let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
-    if (perColIdx < 0) perColIdx = 5;
-    let statusColIdx = headerRow.findIndex(h => /status/i.test(h||''));
+    if (perColIdx < 0) perColIdx = Math.min(5, numCols - 1);
 
-    let numCols = 1;
-    for (let i = 0; i < raw.length; i++) { if (raw[i].length > numCols) numCols = raw[i].length; }
+    // Build padded header labels
+    const headers = [];
+    for (let i = 0; i < numCols; i++) {
+      headers.push((headerRow[i] || '').trim() || (i === countColIdx ? 'On Hand' : ''));
+    }
 
-    const headers = Array.from({ length: numCols }, (_, i) => {
-      if (i === countColIdx) return 'On Hand';
-      return (headerRow[i] || '').trim() || null;
-    });
-
-    return { headerRow, dataRows, countColIdx, itemNumColIdx, perColIdx, statusColIdx, numCols, headers, headerRowIdx };
+    return { headers, dataRows, countColIdx, itemNumColIdx, perColIdx, numCols, headerRowIdx };
   }
 
-  function buildSectionTable(sec, parsed, secIndex) {
-    const { dataRows, countColIdx, itemNumColIdx, perColIdx, statusColIdx, numCols, headers, headerRowIdx } = parsed;
-    const colHdrs = headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
+  // Build the tbody HTML rows for one section, tagged with data-pane-sec
+  function buildRows(sec, p) {
+    if (p.dataRows.length === 0) {
+      return `<tr data-pane-sec="${sec.key}"><td colspan="${p.numCols + 1}" style="text-align:center;color:var(--muted);padding:28px">
+        No items found in the <strong>${sec.tabName}</strong> sheet tab.<br>
+        <small>Make sure a tab named exactly "<strong>${sec.tabName}</strong>" exists in this store's Google Sheet.</small>
+      </td></tr>`;
+    }
 
-    let outCnt = 0;
-    const rowsHTML = dataRows.map((r, dataIdx) => {
-      if (r.every(c => !(c||'').trim())) return '';
-      const sheetRow = (headerRowIdx || 0) + 2 + dataIdx;
-      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
-      const countV = (r[countColIdx]||'').trim();
-      const itemNumV = (r[itemNumColIdx]||'').trim();
-      const nonEmpty = r.filter(c=>(c||'').trim()).length;
-
-      // Only treat as a section-group header if there is NO item number — real items always have one
-      if (!colA && colB && !countV && !itemNumV && nonEmpty <= 2) {
-        return `<tr><td colspan="${numCols+1}" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${colB}</td></tr>`;
-      }
-
-      const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx]||'').trim());
-      if (isOut) outCnt++;
-
-      const cells = headers.map((h, i) => {
-        if (h === null) return '';
-        const val = (r[i]||'').trim();
-        if (i === countColIdx) {
-          return `<td style="padding:3px 5px"><input type="number" class="cs-count-input" data-cs-row="${sheetRow}" data-cs-col="${i}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}" value="${val}" min="0" step="0.01" style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
-        }
-        if (i === statusColIdx && val) {
-          const s = val.toUpperCase();
-          const sc = s==='OUT'?'color:var(--red);font-weight:700':s==='LOW'?'color:var(--amber);font-weight:700':s==='OK'?'color:var(--green);font-weight:600':'';
-          return `<td style="${sc}">${val}</td>`;
+    let html = '';
+    p.dataRows.forEach((r, idx) => {
+      const sheetRow = p.headerRowIdx + 2 + idx;
+      const cells = p.headers.map((h, i) => {
+        const val = (r[i] || '').trim();
+        if (i === p.countColIdx) {
+          return `<td style="padding:3px 5px"><input type="number" class="cs-count-input"
+            data-cs-row="${sheetRow}" data-cs-col="${i}"
+            data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}"
+            value="${val}" min="0" step="0.01"
+            style="width:72px;padding:4px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;font-weight:700;text-align:center;background:var(--white)"></td>`;
         }
         return `<td>${val}</td>`;
       }).join('');
@@ -318,41 +309,32 @@ function renderCountSheetSections(content, sections) {
     return { colHdrs, rowsHTML: rowsHTML || emptyMsg, outCnt };
   }
 
-  const parsed = sections.map(sec => ({ sec, parsed: parseSection(sec) }));
+  const parsed = sections.map(sec => ({ sec, p: parseSection(sec) }));
 
-  const totalOut = parsed.reduce((s, { parsed: p, sec }) => {
-    let cnt = 0;
-    p.dataRows.forEach(r => {
-      if (p.statusColIdx >= 0 && /^out$/i.test((r[p.statusColIdx]||'').trim())) cnt++;
-    });
-    return s + cnt;
-  }, 0);
-
-  const tabButtons = [
-    `<button class="tab-btn deli-sub-btn cs-inv-tab active" data-inv-sec="all" style="font-size:13px;white-space:nowrap">All Items${totalOut>0?` <span style="font-size:11px;color:var(--red);font-weight:700">(${totalOut} OUT)</span>`:''}</button>`,
-    ...sections.map((sec, i) => {
-      const { outCnt } = buildSectionTable(sec, parsed[i].parsed, i);
-      return `<button class="tab-btn deli-sub-btn cs-inv-tab" data-inv-sec="${sec.key}" style="font-size:13px;white-space:nowrap">${sec.label}${outCnt>0?` <span style="font-size:11px;color:var(--red);font-weight:700">(${outCnt} OUT)</span>`:''}</button>`;
-    })
+  // Section sub-tab buttons
+  const tabBtns = [
+    `<button class="tab-btn deli-sub-btn cs-inv-tab active" data-inv-sec="all" style="font-size:13px">All Items (${parsed.reduce((s,x)=>s+x.p.dataRows.length,0)})</button>`,
+    ...parsed.map(({ sec, p }) =>
+      `<button class="tab-btn deli-sub-btn cs-inv-tab" data-inv-sec="${sec.key}" style="font-size:13px">${sec.label} (${p.dataRows.length})</button>`
+    )
   ].join('');
 
-  // Build section panes
-  const allPaneRows = sections.map((sec, i) => {
-    const { colHdrs, rowsHTML } = buildSectionTable(sec, parsed[i].parsed, i);
-    return `<tr class="sec-group-hdr" data-pane-sec="${sec.key}"><td colspan="99" style="font-weight:700;font-size:13px;background:var(--ks-blue2,#1976D2);color:#fff;padding:7px 12px;letter-spacing:.04em;text-transform:uppercase">${sec.label} — ${sec.tabName}</td></tr>` +
-      rowsHTML.replace(/<tr/g, `<tr data-pane-sec="${sec.key}"`);
-  }).join('');
+  // Header row — use first section's headers (all sections share the same sheet structure)
+  const firstHeaders = parsed[0].p.headers;
+  const numCols      = parsed[0].p.numCols;
+  const theadHtml    = firstHeaders.map(h => `<th>${h || ''}</th>`).join('') + '<th>📦 Purch?</th>';
 
-  // We need per-section colHdrs — use the first section's or a generic fallback
-  const firstParsed = parsed[0].parsed;
-  const genericHdrs = firstParsed.headers.map(h => h !== null ? `<th>${h}</th>` : '').join('') + '<th style="white-space:nowrap">📦 Purch?</th>';
+  // Body: section title stripe + rows for each section
+  const tbodyHtml = parsed.map(({ sec, p }) => {
+    const hdr = `<tr data-pane-sec="${sec.key}" style="background:var(--ks-blue2,#1565C0)"><td colspan="${numCols + 1}" style="color:#fff;font-weight:700;font-size:12px;padding:6px 12px;letter-spacing:.05em;text-transform:uppercase">${sec.label} — ${sec.tabName} (${p.dataRows.length} items)</td></tr>`;
+    return hdr + buildRows(sec, p);
+  }).join('');
 
   content.innerHTML = `
     <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${totalOut > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${totalOut} OUT total</span>` : ''}
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save All Counts</button>
         </span>
@@ -370,22 +352,22 @@ function renderCountSheetSections(content, sections) {
         <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
-      <!-- Section tabs -->
+      <!-- Section sub-tabs -->
       <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;-webkit-overflow-scrolling:touch">
-        ${tabButtons}
+        ${tabBtns}
       </div>
 
       <div id="save-all-counts-status" style="font-size:13px;margin-bottom:8px;display:none"></div>
       <div class="table-wrap">
         <table class="data-table" id="cs-main-table">
-          <thead><tr>${genericHdrs}</tr></thead>
-          <tbody>${allPaneRows}</tbody>
+          <thead><tr>${theadHtml}</tr></thead>
+          <tbody>${tbodyHtml}</tbody>
         </table>
       </div>
     </div>
   `;
 
-  // ── Tab switching ──
+  // Sub-tab switching
   content.querySelectorAll('.cs-inv-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       content.querySelectorAll('.cs-inv-tab').forEach(b => b.classList.remove('active'));
@@ -393,59 +375,58 @@ function renderCountSheetSections(content, sections) {
       const sec = btn.dataset.invSec;
       content.querySelectorAll('#cs-main-table tbody tr').forEach(tr => {
         const rowSec = tr.dataset.paneSec;
-        tr.style.display = (sec === 'all' || !rowSec || rowSec === sec) ? '' : 'none';
+        tr.style.display = (sec === 'all' || rowSec === sec) ? '' : 'none';
       });
     });
   });
 
-  // ── Per-input auto-save on blur ──
-  content.querySelectorAll('.cs-count-input').forEach(input => {
+  // Auto-save count inputs on blur
+  content.querySelectorAll('.cs-count-input').forEach(inp => {
     const save = async () => {
-      const sheetRow = input.dataset.csRow;
-      const colIdx   = parseInt(input.dataset.csCol, 10);
-      const tabName  = input.dataset.csTab;
-      const sid      = input.dataset.csSid;
-      if (!sheetRow || isNaN(colIdx)) return;
-      const colLetter = String.fromCharCode(65 + colIdx);
-      input.style.borderColor = 'var(--ks-blue)';
+      const sid      = inp.dataset.csSid;
+      const tabName  = inp.dataset.csTab;
+      const sheetRow = inp.dataset.csRow;
+      const colIdx   = parseInt(inp.dataset.csCol, 10);
+      if (!sid || !tabName || !sheetRow || isNaN(colIdx)) return;
+      const col = String.fromCharCode(65 + colIdx);
+      inp.style.borderColor = 'var(--ks-blue)';
       try {
-        await sheetsUpdate(deliState.sa, sid, `${tabName}!${colLetter}${sheetRow}`, [[input.value]]);
-        input.style.borderColor = 'var(--green)';
-        setTimeout(() => { input.style.borderColor = 'var(--gray)'; }, 1500);
-      } catch (_) { input.style.borderColor = 'var(--red)'; }
+        await sheetsUpdate(deliState.sa, sid, `${tabName}!${col}${sheetRow}`, [[inp.value]]);
+        inp.style.borderColor = 'var(--green)';
+        setTimeout(() => { inp.style.borderColor = 'var(--gray)'; }, 1500);
+      } catch (_) { inp.style.borderColor = 'var(--red)'; }
     };
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+    inp.addEventListener('blur', save);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
   });
 
-  // ── Save All button ──
+  // Save All button
   const saveAllBtn    = content.querySelector('#save-all-counts-btn');
   const saveAllStatus = content.querySelector('#save-all-counts-status');
   saveAllBtn.addEventListener('click', async () => {
-    const inputs = [...content.querySelectorAll('.cs-count-input')];
+    const inputs  = [...content.querySelectorAll('.cs-count-input')];
     const checked = [...content.querySelectorAll('.cs-purch-chk:checked')];
     saveAllBtn.disabled = true; saveAllBtn.textContent = 'Saving…';
     saveAllStatus.style.display = 'block';
     saveAllStatus.innerHTML = '<span style="color:var(--muted)">Writing counts…</span>';
     try {
       await Promise.all(inputs.map(inp => {
+        const sid      = inp.dataset.csSid;
+        const tabName  = inp.dataset.csTab;
         const sheetRow = inp.dataset.csRow;
         const colIdx   = parseInt(inp.dataset.csCol, 10);
-        const tabName  = inp.dataset.csTab;
-        const sid      = inp.dataset.csSid;
-        if (!sheetRow || isNaN(colIdx)) return Promise.resolve();
-        const colLetter = String.fromCharCode(65 + colIdx);
-        return sheetsUpdate(deliState.sa, sid, `${tabName}!${colLetter}${sheetRow}`, [[inp.value]]);
+        if (!sid || !tabName || !sheetRow || isNaN(colIdx)) return Promise.resolve();
+        const col = String.fromCharCode(65 + colIdx);
+        return sheetsUpdate(deliState.sa, sid, `${tabName}!${col}${sheetRow}`, [[inp.value]]);
       }));
-
       if (checked.length > 0) {
         saveAllStatus.innerHTML = '<span style="color:var(--muted)">Fetching BEK prices…</span>';
         const itemNums = [...new Set(checked.map(c => c.dataset.itemNum).filter(Boolean))];
         let priceMap = {};
         try { priceMap = await bekFetchPrices(itemNums); } catch (_) {}
         const priceWrites = checked.filter(c => priceMap[c.dataset.itemNum] != null).map(c => {
-          const colLetter = String.fromCharCode(65 + parseInt(c.dataset.perCol, 10));
-          return sheetsUpdate(deliState.sa, c.dataset.csSid, `${c.dataset.csTab}!${colLetter}${c.dataset.csRow}`, [[priceMap[c.dataset.itemNum]]]);
+          const col = String.fromCharCode(65 + parseInt(c.dataset.perCol, 10));
+          return sheetsUpdate(deliState.sa, c.dataset.csSid, `${c.dataset.csTab}!${col}${c.dataset.csRow}`, [[priceMap[c.dataset.itemNum]]]);
         });
         await Promise.all(priceWrites);
         checked.forEach(c => { c.checked = false; });
@@ -460,7 +441,7 @@ function renderCountSheetSections(content, sections) {
     }
   });
 
-  // ── BEK Upload ──
+  // BEK Upload
   const bekUploadBtn  = content.querySelector('#bek-upload-btn');
   const bekPanel      = content.querySelector('#bek-upload-panel');
   bekUploadBtn.addEventListener('click', () => { bekPanel.style.display = bekPanel.style.display === 'none' ? '' : 'none'; });
@@ -468,7 +449,7 @@ function renderCountSheetSections(content, sections) {
   content.querySelector('#bek-process-btn').addEventListener('click', async () => {
     const file = content.querySelector('#bek-file-input').files[0];
     const bekStatus = content.querySelector('#bek-upload-status');
-    if (!file) { bekStatus.innerHTML = '<span style="color:var(--red)">Select a CSV file first.</span>'; return;  }
+    if (!file) { bekStatus.innerHTML = '<span style="color:var(--red)">Select a CSV file first.</span>'; return; }
     const sbUrl = (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : '';
     const sbKey = (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : '';
     if (!sbUrl || !sbKey) { bekStatus.innerHTML = '<span style="color:var(--red)">BEK feed not configured (add SB_URL / SB_KEY).</span>'; return; }
