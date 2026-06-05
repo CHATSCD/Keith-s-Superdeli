@@ -5,9 +5,19 @@ async function coordinatorInit(container, serviceAccount) {
   container.innerHTML = buildCoordinatorShell();
   await loadCoordinatorData(container, serviceAccount);
 
+  // Use first available store sheet as the central admin/managers sheet
+  const adminSheetId = (typeof STORES !== 'undefined')
+    ? Object.values(STORES).find(s => s.sheetId)?.sheetId || ''
+    : '';
+
   document.getElementById('backup-all-btn')?.addEventListener('click', () => {
     backupAllStores(serviceAccount);
   });
+
+  // ── Manager Registration ──
+  if (adminSheetId) {
+    initManagerRegistration(serviceAccount, adminSheetId);
+  }
 
   // ── Orders ──
   const orderStoreEl  = document.getElementById('coord-order-store');
@@ -267,6 +277,42 @@ function buildCoordinatorShell() {
         <button class="btn btn-primary" id="backup-all-btn">Backup All Stores Now</button>
       </div>
       <div id="backup-status" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">
+        Manager Registration
+        <button class="btn btn-primary btn-sm" id="mgr-add-btn">+ Add Manager</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Managers registered here can sign ICF and Merchandise Transfer forms using their PIN.
+      </p>
+
+      <div id="mgr-add-form" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div class="form-grid">
+          <div class="form-row"><label>Full Name</label><input type="text" id="mgr-name" placeholder="e.g. Sarah Hall"></div>
+          <div class="form-row"><label>Store #</label><input type="text" id="mgr-store" placeholder="e.g. 107"></div>
+          <div class="form-row"><label>PIN (4-6 digits)</label><input type="password" id="mgr-pin" maxlength="6" placeholder="••••" style="letter-spacing:4px"></div>
+          <div class="form-row"><label>Email</label><input type="email" id="mgr-email" placeholder="manager@email.com"></div>
+          <div class="form-row"><label>Role</label>
+            <select id="mgr-role">
+              <option>Store Manager</option>
+              <option>Assistant Manager</option>
+              <option>Deli Manager</option>
+              <option>District Manager</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" id="mgr-save-btn">Save Manager</button>
+          <button class="btn btn-ghost btn-sm" id="mgr-cancel-btn">Cancel</button>
+        </div>
+        <div id="mgr-status" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
+      <div class="table-wrap" id="mgr-table-wrap">
+        <div class="loading-state"><div class="spinner"></div><p>Loading managers…</p></div>
+      </div>
     </div>
   `;
 }
@@ -607,4 +653,103 @@ function exportCoordPDF(rows) {
   });
 
   doc.save(safeText(`Coordinator_Report_${new Date().toISOString().split('T')[0]}.pdf`));
+}
+
+// ════════════════════════════════════════
+// MANAGER REGISTRATION
+// ════════════════════════════════════════
+
+async function loadManagers(sa, sheetId) {
+  const wrap = document.getElementById('mgr-table-wrap');
+  if (!wrap) return;
+  try {
+    const res  = await sheetsGet(sa, sheetId, 'Managers!A1:E200');
+    const rows = res.values || [];
+    if (rows.length <= 1) {
+      wrap.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No managers registered yet.</p>';
+      return;
+    }
+    const bodyHTML = rows.slice(1).map((r, i) => `
+      <tr>
+        <td>${r[0]||''}</td>
+        <td>${r[1]||''}</td>
+        <td style="letter-spacing:3px;color:var(--muted)">••••</td>
+        <td>${r[3]||''}</td>
+        <td>${r[4]||''}</td>
+        <td style="padding:4px 8px">
+          <button class="btn btn-ghost btn-sm mgr-delete-btn" data-row="${i+2}" style="color:var(--red);font-size:11px">Remove</button>
+        </td>
+      </tr>`).join('');
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Store #</th><th>PIN</th><th>Email</th><th>Role</th><th></th></tr></thead>
+        <tbody>${bodyHTML}</tbody>
+      </table>`;
+
+    wrap.querySelectorAll('.mgr-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Remove this manager?')) return;
+        const rowNum = parseInt(btn.dataset.row, 10);
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          // Clear the row by writing empty values
+          await sheetsUpdate(sa, sheetId, `Managers!A${rowNum}:E${rowNum}`, [['','','','','']]);
+          loadManagers(sa, sheetId);
+        } catch(err) {
+          alert('Error removing: ' + err.message);
+          btn.disabled = false; btn.textContent = 'Remove';
+        }
+      });
+    });
+  } catch(err) {
+    wrap.innerHTML = `<p style="color:var(--red);font-size:13px">Error loading managers: ${err.message}</p>`;
+  }
+}
+
+function initManagerRegistration(sa, sheetId) {
+  const addBtn    = document.getElementById('mgr-add-btn');
+  const form      = document.getElementById('mgr-add-form');
+  const cancelBtn = document.getElementById('mgr-cancel-btn');
+  const saveBtn   = document.getElementById('mgr-save-btn');
+  const statusEl  = document.getElementById('mgr-status');
+  if (!addBtn) return;
+
+  // Ensure Managers sheet has headers
+  sheetsEnsureHeaders(sa, sheetId, 'Managers', ['Name','Store#','PIN','Email','Role']).catch(()=>{});
+
+  loadManagers(sa, sheetId);
+
+  addBtn.addEventListener('click', () => {
+    form.style.display = form.style.display === 'none' ? '' : 'none';
+  });
+  cancelBtn.addEventListener('click', () => { form.style.display = 'none'; });
+
+  saveBtn.addEventListener('click', async () => {
+    const name  = document.getElementById('mgr-name').value.trim();
+    const store = document.getElementById('mgr-store').value.trim();
+    const pin   = document.getElementById('mgr-pin').value.trim();
+    const email = document.getElementById('mgr-email').value.trim();
+    const role  = document.getElementById('mgr-role').value;
+
+    if (!name)  { statusEl.innerHTML = '<span style="color:var(--red)">Name required.</span>'; return; }
+    if (!store) { statusEl.innerHTML = '<span style="color:var(--red)">Store # required.</span>'; return; }
+    if (!pin || pin.length < 4) { statusEl.innerHTML = '<span style="color:var(--red)">PIN must be 4–6 digits.</span>'; return; }
+
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; statusEl.textContent = '';
+    try {
+      await sheetsEnsureHeaders(sa, sheetId, 'Managers', ['Name','Store#','PIN','Email','Role']);
+      await sheetsAppend(sa, sheetId, 'Managers!A1', [[name, store, pin, email, role]]);
+      statusEl.innerHTML = '<span style="color:var(--green)">✓ Manager saved.</span>';
+      document.getElementById('mgr-name').value  = '';
+      document.getElementById('mgr-store').value = '';
+      document.getElementById('mgr-pin').value   = '';
+      document.getElementById('mgr-email').value = '';
+      form.style.display = 'none';
+      loadManagers(sa, sheetId);
+    } catch(err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Save Manager';
+    }
+  });
 }
