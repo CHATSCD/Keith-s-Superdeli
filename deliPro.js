@@ -110,14 +110,15 @@ async function switchDeliTab(container, tabId) {
     ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
     : '';
 
-  // Inventory: load each section from its own dedicated sheet tab
-  if (tabId === 'inventory') {
+  // Inventory: if a dedicated count sheet exists, load Deli/Branded Deli/Fountain tabs;
+  // otherwise fall through to load the single "Inventory" tab from the main sheet.
+  if (tabId === 'inventory' && deliState.countSheetId) {
     const INV_SECTION_DEFS = [
       { key: 'deli',     label: '🥩 Deli',          tabName: 'Deli' },
       { key: 'branded',  label: '🍕 Branded Deli',   tabName: 'Branded Deli' },
       { key: 'beverage', label: '☕ Fountain',        tabName: 'Fountain' },
     ];
-    const sheetId = deliState.countSheetId || deliState.sheetId;
+    const sheetId = deliState.countSheetId;
 
     content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading inventory sections…</p></div>`;
 
