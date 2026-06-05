@@ -1261,6 +1261,26 @@ function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
 function renderInventory(content, rows) {
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
 
+  // Detect section headers and assign each row a section
+  let activeSec = 'deli';
+  const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
+  const taggedRows = dataRows.map(r => {
+    const colA = (r[0] || '').trim();
+    const colB = (r[1] || '').trim();
+    const nonEmpty = r.filter(c => (c || '').toString().trim() !== '').length;
+    // Section header row: no count-by, has item name, most cols empty
+    if (!colA && colB && nonEmpty <= 2) {
+      const lbl = colB.toLowerCase();
+      if      (/branded/i.test(lbl))                              activeSec = 'branded';
+      else if (/fountain|beverage|bev|coffee|bibs/i.test(lbl))   activeSec = 'beverage';
+      else if (/deli/i.test(lbl))                                 activeSec = 'deli';
+      return { r, sec: activeSec, isHeader: true };
+    }
+    const oh = parseFloat(r[4]) || 0;
+    if (oh === 0 && (r[1]||'').trim()) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
+    return { r, sec: activeSec, isHeader: false };
+  });
+
   const outItems = dataRows.filter(r => (r[4]||'').toString().trim() === '0' || (r[4]||'').toString().trim() === '');
   const lowItems = dataRows.filter(r => {
     const oh = parseFloat(r[4]) || 0;
@@ -1268,21 +1288,47 @@ function renderInventory(content, rows) {
     return oh > 0 && oh < per;
   });
 
-  const bodyHTML = dataRows.length ? dataRows.map(r => {
+  // Load saved paid state from localStorage
+  const paidKey = 'inv-paid-' + (deliState.sheetId || 'default');
+  let paidItems = {};
+  try { paidItems = JSON.parse(localStorage.getItem(paidKey) || '{}'); } catch(e) {}
+
+  const bodyHTML = taggedRows.length ? taggedRows.map((tr, idx) => {
+    const { r, sec, isHeader } = tr;
+    if (isHeader) {
+      return `<tr data-sec="${sec}" class="inv-sec-header"><td colspan="8" style="font-weight:700;font-size:12px;background:var(--ks-blue);color:#fff;padding:5px 10px;letter-spacing:.05em;text-transform:uppercase">${r[1]||''}</td></tr>`;
+    }
     const oh = parseFloat(r[4]) || 0;
-    const out = oh === 0;
-    return `<tr class="${out ? 'row-overdue' : ''}">
+    const out = oh === 0 && (r[1]||'').trim() !== '';
+    const itemKey = (r[2]||r[1]||idx).toString().trim();
+    const paid = !!paidItems[itemKey];
+    return `<tr data-sec="${sec}" data-paid="${paid}" data-item-key="${itemKey.replace(/"/g,'&quot;')}" class="${out ? 'row-overdue' : ''}${paid ? ' inv-paid-row' : ''}">
       <td style="font-size:11px;color:var(--muted)">${r[0]||''}</td>
-      <td style="font-weight:600">${r[1]||''}</td>
+      <td style="font-weight:600${paid?' text-decoration:line-through;opacity:.55':''}">${r[1]||''}</td>
       <td style="font-size:12px;color:var(--muted)">${r[2]||''}</td>
       <td style="font-size:12px">${r[3]||''}</td>
       <td style="font-weight:700;color:${out?'var(--red)':'inherit'}">${r[4]||''}</td>
       <td>$${r[5]||''}</td>
       <td style="font-weight:600">$${r[6]||''}</td>
+      <td style="padding:3px 8px;text-align:center"><input type="checkbox" class="inv-paid-chk" data-item-key="${itemKey.replace(/"/g,'&quot;')}" ${paid?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--ks-blue);display:none"></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">
+  }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">
     No inventory data — sheet may be loading or not yet shared with this app.
   </td></tr>`;
+
+  const INV_SECTION_TABS = [
+    { key: 'all',      label: 'All Items' },
+    { key: 'deli',     label: '🥩 Deli' },
+    { key: 'branded',  label: '🍕 Branded Deli' },
+    { key: 'beverage', label: '☕ Beverage Station' },
+  ];
+
+  const tabButtons = INV_SECTION_TABS.map((s, i) => {
+    const cnt = outCount[s.key] || 0;
+    return `<button class="tab-btn deli-sub-btn inv-sec-tab${i===0?' active':''}" data-inv-sec="${s.key}" style="font-size:13px;white-space:nowrap">
+      ${s.label}${cnt > 0 ? ` <span style="font-size:11px;color:var(--red);font-weight:700">(${cnt} OUT)</span>` : ''}
+    </button>`;
+  }).join('');
 
   content.innerHTML = `
     ${(outItems.length || lowItems.length) ? `
@@ -1295,9 +1341,12 @@ function renderInventory(content, rows) {
     </div>` : ''}
 
     <div class="card">
-      <div class="card-title">
-        Inventory
-        <button class="btn btn-primary btn-sm" id="show-inv-form">+ Add Item</button>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Inventory</span>
+        <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="inv-paid-toggle" style="font-size:12px">✅ Items Paid: OFF</button>
+          <button class="btn btn-primary btn-sm" id="show-inv-form">+ Add Item</button>
+        </span>
       </div>
 
       <div id="inv-add-form" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);margin-bottom:16px">
@@ -1319,11 +1368,16 @@ function renderInventory(content, rows) {
         <div id="inv-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
+      <!-- Section sub-tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
+        ${tabButtons}
+      </div>
+
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="inv-main-table">
           <thead><tr>
             <th>Count By</th><th>Item</th><th>Item#</th><th>Case Pack</th>
-            <th>On Hand</th><th>Per</th><th>Total</th>
+            <th>On Hand</th><th>Per</th><th>Total</th><th id="inv-paid-col-hdr" style="display:none">Paid</th>
           </tr></thead>
           <tbody>${bodyHTML}</tbody>
         </table>
@@ -1347,6 +1401,50 @@ function renderInventory(content, rows) {
 
   content.querySelector('#cancel-inv-btn').addEventListener('click', () => { form.style.display='none'; showBtn.style.display=''; });
   showBtn.addEventListener('click', () => { form.style.display='block'; showBtn.style.display='none'; });
+
+  // ── Section tab filtering ──
+  content.querySelectorAll('.inv-sec-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      content.querySelectorAll('.inv-sec-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sec = btn.dataset.invSec;
+      content.querySelectorAll('#inv-main-table tbody tr').forEach(tr => {
+        tr.style.display = (sec === 'all' || tr.dataset.sec === sec) ? '' : 'none';
+      });
+    });
+  });
+
+  // ── Items Paid toggle ──
+  let paidMode = false;
+  const paidToggleBtn = content.querySelector('#inv-paid-toggle');
+  const paidColHdr    = content.querySelector('#inv-paid-col-hdr');
+
+  paidToggleBtn.addEventListener('click', () => {
+    paidMode = !paidMode;
+    paidToggleBtn.textContent = paidMode ? '✅ Items Paid: ON' : '✅ Items Paid: OFF';
+    paidToggleBtn.style.background = paidMode ? 'var(--ks-blue)' : '';
+    paidToggleBtn.style.color      = paidMode ? '#fff' : '';
+    paidColHdr.style.display       = paidMode ? '' : 'none';
+    content.querySelectorAll('.inv-paid-chk').forEach(chk => {
+      chk.style.display = paidMode ? '' : 'none';
+    });
+  });
+
+  content.querySelectorAll('.inv-paid-chk').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const key = chk.dataset.itemKey;
+      if (chk.checked) { paidItems[key] = true; } else { delete paidItems[key]; }
+      try { localStorage.setItem(paidKey, JSON.stringify(paidItems)); } catch(e) {}
+      const row = chk.closest('tr');
+      if (row) {
+        row.dataset.paid = chk.checked ? 'true' : 'false';
+        row.classList.toggle('inv-paid-row', chk.checked);
+        const nameCell = row.querySelector('td:nth-child(2)');
+        if (nameCell) nameCell.style.textDecoration = chk.checked ? 'line-through' : '';
+        if (nameCell) nameCell.style.opacity = chk.checked ? '0.55' : '';
+      }
+    });
+  });
 
   content.querySelector('#save-inv-btn').addEventListener('click', async () => {
     const btn      = content.querySelector('#save-inv-btn');
