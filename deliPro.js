@@ -234,16 +234,19 @@ function renderCountSheetSections(content, sections) {
     const raw = sec.rows;
     if (!raw || raw.length === 0) return { headerRow: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, statusColIdx: -1, numCols: 7, headers: [] };
 
+    // Find header row: prefer a row with 'Count By'/'Item#' pattern; fall back to the
+    // row with the most populated cells in the first 6 rows (title rows are sparse).
     let headerRowIdx = 0;
     let headerFound = false;
     for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
       if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; headerFound = true; break; }
     }
-    // If no explicit header pattern, check if row 0 is a title (≤2 cells) and row 1 has more — skip title
     if (!headerFound) {
-      const row0Cells = (raw[0] || []).filter(c => (c || '').trim()).length;
-      const row1Cells = (raw[1] || []).filter(c => (c || '').trim()).length;
-      if (row0Cells <= 2 && row1Cells >= 3) headerRowIdx = 1;
+      let maxCells = 0;
+      for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+        const cnt = (raw[ri] || []).filter(c => (c || '').trim()).length;
+        if (cnt > maxCells) { maxCells = cnt; headerRowIdx = ri; }
+      }
     }
     const headerRow = raw[headerRowIdx] || [];
     const dataRows  = raw.slice(headerRowIdx + 1);
