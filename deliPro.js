@@ -94,6 +94,11 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  if (tabId === 'inventory') {
+    renderInventoryEmbed(content);
+    return;
+  }
+
   const tabCfg = DELI_TABS[tabId];
   content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading ${tabCfg.label}…</p></div>`;
 
@@ -1258,18 +1263,49 @@ function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
   win.document.close();
 }
 
+function renderInventoryEmbed(content) {
+  const sheetId = deliState.sheetId;
+  if (!sheetId) {
+    content.innerHTML = `<div class="banner banner-warn"><div class="banner-icon">⚠</div><div>No Sheet ID configured for this store.</div></div>`;
+    return;
+  }
+
+  const editUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+  const embedUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?usp=sharing&rm=minimal`;
+
+  content.innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--gray);flex-wrap:wrap;gap:8px">
+        <span style="font-weight:700;font-size:15px">Inventory</span>
+        <a href="${editUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">
+          Open in Google Sheets ↗
+        </a>
+      </div>
+      <iframe
+        src="${embedUrl}"
+        style="width:100%;height:calc(100vh - 180px);min-height:500px;border:none;display:block"
+        allowfullscreen
+        loading="lazy"
+      ></iframe>
+    </div>
+  `;
+}
+
 function renderInventory(content, rows) {
   const dataRows = rows.length > 1 ? rows.slice(1) : [];
 
   // Detect section headers and assign each row a section
   let activeSec = 'deli';
+  let hasSections = false;
   const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
   const taggedRows = dataRows.map(r => {
     const colA = (r[0] || '').trim();
     const colB = (r[1] || '').trim();
     const nonEmpty = r.filter(c => (c || '').toString().trim() !== '').length;
-    // Section header row: no count-by, has item name, most cols empty
-    if (!colA && colB && nonEmpty <= 2) {
+    // Section header row: has item/label text but no numeric data columns
+    const hasNumericData = !isNaN(parseFloat(r[4])) && parseFloat(r[4]) > 0;
+    if (colB && !hasNumericData && nonEmpty <= 3 && /branded|deli|beverage|bev|fountain|coffee|bibs/i.test(colB)) {
+      hasSections = true;
       const lbl = colB.toLowerCase();
       if      (/branded/i.test(lbl))                              activeSec = 'branded';
       else if (/fountain|beverage|bev|coffee|bibs/i.test(lbl))   activeSec = 'beverage';
@@ -1277,7 +1313,7 @@ function renderInventory(content, rows) {
       return { r, sec: activeSec, isHeader: true };
     }
     const oh = parseFloat(r[4]) || 0;
-    if (oh === 0 && (r[1]||'').trim()) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
+    if (oh === 0 && colB) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
     return { r, sec: activeSec, isHeader: false };
   });
 
@@ -1318,9 +1354,9 @@ function renderInventory(content, rows) {
 
   const INV_SECTION_TABS = [
     { key: 'all',      label: 'All Items' },
-    { key: 'deli',     label: '🥩 Deli' },
-    { key: 'branded',  label: '🍕 Branded Deli' },
-    { key: 'beverage', label: '☕ Beverage Station' },
+    { key: 'deli',     label: 'Deli' },
+    { key: 'branded',  label: 'Branded Deli' },
+    { key: 'beverage', label: 'Fountain' },
   ];
 
   const tabButtons = INV_SECTION_TABS.map((s, i) => {
@@ -1368,8 +1404,8 @@ function renderInventory(content, rows) {
         <div id="inv-status" style="margin-top:8px;font-size:13px"></div>
       </div>
 
-      <!-- Section sub-tabs -->
-      <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
+      <!-- Section sub-tabs (only shown when sheet has section headers) -->
+      <div id="inv-sec-nav" style="display:${hasSections?'flex':'none'};gap:4px;margin-bottom:10px;border-bottom:2px solid var(--gray);overflow-x:auto;padding-bottom:0;-webkit-overflow-scrolling:touch">
         ${tabButtons}
       </div>
 
