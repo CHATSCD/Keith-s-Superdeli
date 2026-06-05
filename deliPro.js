@@ -1055,10 +1055,6 @@ function renderDailyInvForm(content, sheetRows) {
         <div id="di-close-status" style="font-size:13px;margin-top:8px"></div>
       </div>
 
-      <!-- ICF & Transfer forms injected below -->
-      <div id="di-icf-container"></div>
-      <div id="di-transfer-container"></div>
-
       <!-- Pull Week panel -->
       <div id="di-pull-panel" style="display:none;margin-top:12px;background:var(--bg);border-radius:8px;padding:14px;border:1.5px solid var(--gray)">
         <div style="font-weight:600;font-size:13px;margin-bottom:10px">Pull Week Data from Another Store</div>
@@ -1077,10 +1073,6 @@ function renderDailyInvForm(content, sheetRows) {
       </div>
     </div>
   `;
-
-  // Render ICF and Transfer forms
-  renderICFForm(content.querySelector('#di-icf-container'));
-  renderTransferForm(content.querySelector('#di-transfer-container'));
 
   // Re-render on week change
   content.querySelector('#di-load-btn').addEventListener('click', () => {
@@ -2631,7 +2623,14 @@ function renderInvoices(content, rows) {
         </table>
       </div>
     </div>
+
+    <!-- Bring In / ICF and Transfer forms -->
+    <div id="inv-icf-container"></div>
+    <div id="inv-transfer-container"></div>
   `;
+
+  renderICFForm(content.querySelector('#inv-icf-container'));
+  renderTransferForm(content.querySelector('#inv-transfer-container'));
 
   content.querySelector('#save-iv-btn').addEventListener('click', async () => {
     const btn      = content.querySelector('#save-iv-btn');
