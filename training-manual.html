@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deli Pro — Employee Training Manual | Keith's Superstores</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* ── TOKENS ─────────────────────────────────── */
+    :root {
+      --blue:    #1565C0;
+      --blue-dk: #0D47A1;
+      --blue-lt: #E3F2FD;
+      --red:     #CC1F2B;
+      --red-lt:  #FEF2F2;
+      --gold:    #FFD700;
+      --gold-lt: #FFFBEB;
+      --green:   #16A34A;
+      --green-lt:#F0FDF4;
+      --amber:   #D97706;
+      --amber-lt:#FFFBEB;
+      --white:   #FFFFFF;
+      --off:     #F5F7FA;
+      --border:  #DDE3ED;
+      --muted:   #6B7280;
+      --text:    #1A202C;
+      --radius:  10px;
+      --shadow:  0 2px 16px rgba(0,0,0,.07);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: var(--off);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* ── PRINT BAR ───────────────────────────────── */
+    #print-bar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--blue-dk);
+      padding: 10px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      flex-wrap: wrap;
+    }
+    #print-bar span { color: rgba(255,255,255,.8); font-size: 13px; }
+    #print-bar span strong { color: var(--gold); }
+    .btn-pdf {
+      background: var(--gold); color: var(--blue-dk);
+      border: none; border-radius: 6px;
+      padding: 8px 20px; font-weight: 700; font-size: 13px;
+      cursor: pointer; font-family: 'Barlow Condensed', sans-serif;
+      letter-spacing: .5px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .btn-pdf:hover { background: #e6c700; }
+
+    /* ── COVER ───────────────────────────────────── */
+    .cover {
+      background: linear-gradient(140deg, var(--blue-dk) 0%, var(--blue) 55%, #1976D2 100%);
+      color: #fff;
+      padding: 64px 32px 56px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(45deg,transparent,transparent 48px,rgba(255,215,0,.035) 48px,rgba(255,215,0,.035) 49px);
+      pointer-events: none;
+    }
+    .cover-logo {
+      height: 64px; margin-bottom: 20px;
+      filter: brightness(0) invert(1);
+    }
+    .cover-pill {
+      display: inline-block;
+      background: var(--gold); color: var(--blue-dk);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; font-weight: 800;
+      letter-spacing: 2px; text-transform: uppercase;
+      padding: 5px 16px; border-radius: 20px;
+      margin-bottom: 18px;
+    }
+    .cover h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(44px, 9vw, 80px);
+      font-weight: 800; text-transform: uppercase;
+      line-height: 1; letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    .cover h1 em { color: var(--gold); font-style: normal; }
+    .cover .cover-sub {
+      font-size: 17px; font-weight: 500;
+      opacity: .85; margin-bottom: 28px;
+    }
+    .cover-line {
+      width: 56px; height: 4px;
+      background: var(--gold); border-radius: 2px;
+      margin: 0 auto 24px;
+    }
+    .cover-edition {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px; letter-spacing: 1px;
+      opacity: .7; text-transform: uppercase;
+    }
+
+    /* ── TOC ─────────────────────────────────────── */
+    .toc-wrap {
+      max-width: 900px; margin: 36px auto;
+      background: var(--white);
+      border-left: 6px solid var(--blue);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 28px 32px;
+      box-shadow: var(--shadow);
+    }
+    .toc-wrap h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px; font-weight: 800;
+      text-transform: uppercase; color: var(--blue-dk);
+      margin-bottom: 18px; letter-spacing: .5px;
+    }
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 8px 20px;
+    }
+    .toc-grid a {
+      display: flex; align-items: center; gap: 10px;
+      color: var(--blue); text-decoration: none;
+      font-weight: 600; font-size: 14px;
+      padding: 5px 0;
+    }
+    .toc-grid a:hover { color: var(--red); }
+    .toc-num {
+      min-width: 26px; height: 26px;
+      background: var(--blue); color: #fff;
+      border-radius: 50%;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── PAGE WRAPPER ────────────────────────────── */
+    .page { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+
+    /* ── CHAPTER ─────────────────────────────────── */
+    .chapter {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 32px;
+      overflow: hidden;
+    }
+    .ch-header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 20px 28px;
+      background: var(--blue);
+      color: #fff;
+    }
+    .ch-header.red   { background: var(--red); }
+    .ch-header.dark  { background: var(--blue-dk); }
+    .ch-header.gold  { background: #92400E; }
+    .ch-header.green { background: #166534; }
+    .ch-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 48px; font-weight: 800;
+      opacity: .25; line-height: 1; flex-shrink: 0;
+    }
+    .ch-titles small {
+      display: block;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      opacity: .75; margin-bottom: 3px;
+    }
+    .ch-titles h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 26px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .5px;
+      line-height: 1.1;
+    }
+    .ch-body { padding: 28px 28px 32px; }
+
+    /* ── TYPOGRAPHY ──────────────────────────────── */
+    h3 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 19px; font-weight: 800;
+      text-transform: uppercase; color: var(--blue-dk);
+      letter-spacing: .5px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--border);
+    }
+    h3:first-child { margin-top: 0; }
+    h4 {
+      font-size: 14px; font-weight: 700;
+      color: var(--blue-dk); margin: 16px 0 6px;
+      text-transform: uppercase; letter-spacing: .3px;
+    }
+    p { margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+    ul, ol { margin: 8px 0 12px 20px; }
+    li { margin-bottom: 6px; font-size: 14px; }
+    strong { color: var(--blue-dk); }
+    code {
+      background: #F1F5F9; color: var(--red);
+      font-family: monospace; font-size: 13px;
+      padding: 2px 6px; border-radius: 4px;
+    }
+
+    /* ── CALLOUT ─────────────────────────────────── */
+    .call {
+      display: flex; gap: 13px; align-items: flex-start;
+      border-radius: 8px; padding: 14px 16px;
+      margin: 14px 0; font-size: 14px;
+    }
+    .call-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .call-body strong { display: block; margin-bottom: 3px; font-size: 14px; }
+    .call.tip    { background: var(--blue-lt);  border-left: 4px solid var(--blue); }
+    .call.warn   { background: var(--amber-lt); border-left: 4px solid var(--amber); }
+    .call.danger { background: var(--red-lt);   border-left: 4px solid var(--red); }
+    .call.win    { background: var(--green-lt); border-left: 4px solid var(--green); }
+
+    /* ── STEPS ───────────────────────────────────── */
+    .steps { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+    .step {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--off); border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .step-n {
+      min-width: 32px; height: 32px;
+      background: var(--blue); color: #fff;
+      border-radius: 50%;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800; font-size: 17px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-n.red  { background: var(--red); }
+    .step-n.gold { background: #92400E; }
+    .step-body strong { display: block; font-size: 14px; color: var(--blue-dk); margin-bottom: 3px; }
+    .step-body p { font-size: 13px; color: #374151; margin: 0; }
+
+    /* ── FIELD TABLE ─────────────────────────────── */
+    .field-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+    .field-table th {
+      background: var(--blue); color: #fff;
+      padding: 9px 12px; text-align: left;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; letter-spacing: .5px; text-transform: uppercase;
+    }
+    .field-table th:first-child { border-radius: 6px 0 0 0; }
+    .field-table th:last-child  { border-radius: 0 6px 0 0; }
+    .field-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .field-table tr:last-child td { border-bottom: none; }
+    .field-table tr:nth-child(even) td { background: var(--off); }
+    .field-table td:first-child { font-weight: 700; color: var(--blue-dk); white-space: nowrap; }
+
+    /* ── BADGE ───────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px; border-radius: 12px;
+      font-size: 12px; font-weight: 700;
+      border: 1.5px solid;
+    }
+    .badge.blue  { background: var(--blue-lt);  color: var(--blue-dk);  border-color: #90CAF9; }
+    .badge.green { background: var(--green-lt); color: #166534;          border-color: #86EFAC; }
+    .badge.red   { background: var(--red-lt);   color: var(--red);       border-color: #FECACA; }
+    .badge.amber { background: var(--amber-lt); color: var(--amber);     border-color: #FCD34D; }
+    .badge.gray  { background: #F3F4F6;         color: var(--muted);     border-color: #D1D5DB; }
+
+    /* ── BADGE ROW ───────────────────────────────── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .chip {
+      background: var(--off); border: 1.5px solid var(--border);
+      border-radius: 16px; padding: 4px 12px;
+      font-size: 13px; font-weight: 600; color: var(--blue-dk);
+    }
+
+    /* ── SCREEN MOCK ─────────────────────────────── */
+    .screen-mock {
+      background: #1A1A2E;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .screen-mock .bar {
+      background: var(--blue);
+      border-radius: 6px 6px 0 0;
+      padding: 8px 14px;
+      color: #fff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700; font-size: 14px;
+      letter-spacing: .5px;
+      margin: -14px -16px 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .screen-mock .bar img { height: 22px; filter: brightness(0) invert(1); }
+    .screen-mock .nav-tabs {
+      display: flex; gap: 4px; margin-bottom: 10px;
+    }
+    .screen-mock .nav-tab {
+      background: rgba(255,255,255,.12);
+      color: rgba(255,255,255,.7);
+      border-radius: 5px; padding: 5px 12px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+    }
+    .screen-mock .nav-tab.active {
+      background: var(--gold); color: var(--blue-dk);
+    }
+    .screen-mock .sub-tabs {
+      display: flex; gap: 4px; margin-bottom: 10px; overflow-x: auto;
+    }
+    .screen-mock .sub-tab {
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.6);
+      border-radius: 4px; padding: 4px 10px;
+      font-family: 'Inter', sans-serif; font-size: 11px; white-space: nowrap;
+    }
+    .screen-mock .sub-tab.active { background: var(--blue); color: #fff; }
+    .screen-mock .content-area {
+      background: rgba(255,255,255,.06);
+      border-radius: 6px; padding: 10px 12px;
+      color: rgba(255,255,255,.8); font-size: 12px; line-height: 1.6;
+    }
+    .screen-mock .row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      padding: 5px 0; font-size: 12px;
+    }
+    .screen-mock .pill {
+      background: var(--green); color: #fff;
+      border-radius: 4px; padding: 2px 8px; font-size: 11px;
+    }
+    .screen-mock .pill.red { background: var(--red); }
+    .screen-mock .pill.amber { background: var(--amber); }
+
+    /* ── DIVIDER ─────────────────────────────────── */
+    .divider { border: none; border-top: 2px solid var(--border); margin: 24px 0; }
+
+    /* ── CHECKLIST ───────────────────────────────── */
+    .cklist { list-style: none; margin: 10px 0; }
+    .cklist li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 14px; margin-bottom: 7px;
+    }
+    .cklist li::before {
+      content: '☐';
+      font-size: 16px; flex-shrink: 0;
+      color: var(--blue); margin-top: -1px;
+    }
+
+    /* ── FOOTER ──────────────────────────────────── */
+    footer {
+      background: var(--blue-dk); color: rgba(255,255,255,.65);
+      text-align: center; padding: 28px 20px;
+      font-size: 13px;
+    }
+    footer strong { color: var(--gold); font-family: 'Barlow Condensed', sans-serif; font-size: 15px; }
+
+    /* ── PRINT ───────────────────────────────────── */
+    @media print {
+      #print-bar { display: none; }
+      body { background: #fff; font-size: 12px; }
+      .chapter { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+      .cover { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .ch-header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+    @media (max-width: 600px) {
+      .ch-body { padding: 20px 16px 24px; }
+      .cover { padding: 48px 18px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- PRINT / PDF BAR -->
+<div id="print-bar">
+  <span><strong>Deli Pro</strong> — Employee Training Manual &nbsp;|&nbsp; Keith's Superstores</span>
+  <button class="btn-pdf" onclick="window.print()">🖨 Print / Save PDF</button>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     COVER
+══════════════════════════════════════════════ -->
+<div class="cover">
+  <img class="cover-logo"
+    src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png"
+    alt="Keith's Superstores" />
+  <div class="cover-pill">Official Training Document</div>
+  <h1>Deli <em>Pro</em><br>Training Manual</h1>
+  <p class="cover-sub">The complete step-by-step guide to using the Deli Pro app</p>
+  <div class="cover-line"></div>
+  <p class="cover-edition">Keith's Superstores — Food &amp; Beverage Department &nbsp;·&nbsp; 2026 Edition</p>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════════ -->
+<div class="toc-wrap">
+  <h2>Table of Contents</h2>
+  <div class="toc-grid">
+    <a href="#ch1"><span class="toc-num">1</span> Getting Started — Logging In</a>
+    <a href="#ch2"><span class="toc-num">2</span> Navigating the App</a>
+    <a href="#ch3"><span class="toc-num">3</span> Daily Inventory Form</a>
+    <a href="#ch4"><span class="toc-num">4</span> Inventory Counts</a>
+    <a href="#ch5"><span class="toc-num">5</span> Waste Log</a>
+    <a href="#ch6"><span class="toc-num">6</span> Food Cost Calculator</a>
+    <a href="#ch7"><span class="toc-num">7</span> Invoices &amp; Orders</a>
+    <a href="#ch8"><span class="toc-num">8</span> Suppliers</a>
+    <a href="#ch9"><span class="toc-num">9</span> Labels</a>
+    <a href="#ch10"><span class="toc-num">10</span> Food Safety Inspections</a>
+    <a href="#ch11"><span class="toc-num">11</span> Equipment Cleaning Logs</a>
+    <a href="#ch12"><span class="toc-num">12</span> Temperature Logs</a>
+    <a href="#ch13"><span class="toc-num">13</span> Entry Logs (Bakery, Pretzel, Roller Grill, Sanitizer, Drink Station, Peanut Patch)</a>
+    <a href="#ch14"><span class="toc-num">14</span> Coordinator Dashboard</a>
+    <a href="#ch15"><span class="toc-num">15</span> Common Errors &amp; Fixes</a>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- ══════════════════════════════════════════════
+     CH 1 — GETTING STARTED
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch1">
+  <div class="ch-header">
+    <div class="ch-num">01</div>
+    <div class="ch-titles"><small>Chapter One</small><h2>Getting Started — Opening the App</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Deli Pro runs entirely in a web browser. There's nothing to install. You can use it on any phone, tablet, or computer as long as you have internet access.</p>
+
+    <h3>How to Open Your Store</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Open a browser</strong>
+          <p>Chrome, Safari, or Edge all work. Type the store's URL into the address bar or tap the bookmark your manager set up.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Select your store</strong>
+          <p>You'll see a store-picker screen with the Keith's logo. Tap the dropdown, find your store number and city, then tap <strong>Open Store</strong>. You can also double-tap your store in the dropdown to go directly.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>The app loads your store's data</strong>
+          <p>The header will show your store number and city (e.g., <strong>#107 — Saucier</strong>). You're now connected to your store's live Google Sheet. Every change you make saves there instantly.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="call tip">
+      <div class="call-icon">💡</div>
+      <div class="call-body"><strong>Bookmark it.</strong> Once your store is open, bookmark the page. Next time you open the bookmark, it goes straight to your store — no picker needed.</div>
+    </div>
+
+    <h3>What You'll See on the Store Picker</h3>
+    <div class="screen-mock">
+      <div class="bar">
+        <img src="https://le-cdn.hibuwebsites.com/6cf3071d4dd743b8a38bdac1b270ed81/dms3rep/multi/opt/logo-keith-superstore-252c5bd2-366w.png" alt="logo" />
+        Keith's Superstores — Deli Pro
+      </div>
+      <div class="content-area" style="text-align:center;padding:20px">
+        <div style="color:rgba(255,255,255,.9);font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;margin-bottom:8px">KEITH'S SUPERSTORES</div>
+        <div style="color:rgba(255,255,255,.6);font-size:12px;margin-bottom:16px">Select your store to open Deli Pro</div>
+        <div style="background:rgba(255,255,255,.12);border-radius:6px;padding:8px 12px;color:rgba(255,255,255,.7);font-size:12px;margin-bottom:10px;text-align:left">▾ &nbsp;#107 — Saucier</div>
+        <div style="background:#1565C0;border-radius:6px;padding:9px 20px;color:#fff;font-size:13px;font-weight:700;display:inline-block">Open Store →</div>
+        <div style="margin-top:14px;color:rgba(255,255,255,.4);font-size:11px">🗂 Coordinator View</div>
+      </div>
+    </div>
+
+    <h3>If You See "Service Account Not Configured"</h3>
+    <p>This means the app hasn't been set up with Google credentials yet. This is an admin issue — contact your Food &amp; Beverage Coordinator. You cannot fix this yourself, and it's nothing you did wrong.</p>
+
+    <h3>If You See "Unknown Store"</h3>
+    <p>The store number in the URL doesn't match the store list. Go back to the store picker and select your store from the dropdown instead of typing the URL manually.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 2 — NAVIGATION
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch2">
+  <div class="ch-header">
+    <div class="ch-num">02</div>
+    <div class="ch-titles"><small>Chapter Two</small><h2>Navigating the App</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Once your store is open, the app has <strong>three main modules</strong>. Each module has its own set of tools.</p>
+
+    <h3>The Three Modules</h3>
+    <table class="field-table">
+      <thead><tr><th>Module</th><th>What's Inside</th><th>Who Uses It</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>🏪 Deli Pro</td>
+          <td>Inventory, daily inv. form, waste log, food cost, invoices, orders, suppliers, labels, analytics, training</td>
+          <td>All deli staff</td>
+        </tr>
+        <tr>
+          <td>✅ Inspection</td>
+          <td>14-section food safety checklist, photo documentation, PDF export, maintenance tickets</td>
+          <td>Managers &amp; leads</td>
+        </tr>
+        <tr>
+          <td>🛠 Deli Logs</td>
+          <td>Equipment cleaning logs, temperature logs, bakery/pretzel/roller grill/sanitizer/drink/peanut patch logs</td>
+          <td>All deli staff</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Switching Modules — Desktop / Tablet</h3>
+    <p>On a tablet or computer, look for the <strong>blue tab bar near the top</strong> of the page. Tap any tab to switch modules.</p>
+
+    <h3>Switching Modules — Mobile Phone</h3>
+    <p>On a phone, use the <strong>bottom navigation bar</strong> with icons. It's always visible no matter how far you've scrolled.</p>
+
+    <div class="call tip">
+      <div class="call-icon">📱</div>
+      <div class="call-body"><strong>Gloves on?</strong> The bottom nav buttons are large enough to tap with your knuckle. You don't need to take your gloves off to switch screens.</div>
+    </div>
+
+    <h3>Sub-Tabs Inside Deli Pro</h3>
+    <p>Once you're in the Deli Pro module, a second row of tabs appears. Swipe this row left on a phone to see all options:</p>
+    <div class="badge-row">
+      <span class="chip">Daily Inv. Form</span>
+      <span class="chip">Inventory</span>
+      <span class="chip">Waste Log</span>
+      <span class="chip">Food Cost</span>
+      <span class="chip">Invoices</span>
+      <span class="chip">Suppliers</span>
+      <span class="chip">Labels</span>
+      <span class="chip">Analytics</span>
+      <span class="chip">Training</span>
+    </div>
+
+    <h3>Sub-Tabs Inside Deli Logs</h3>
+    <p>The Deli Logs module also has a scrollable tab bar across the top for each type of log:</p>
+    <div class="badge-row">
+      <span class="chip">🍦 Ice Cream Machine</span>
+      <span class="chip">🥖 Bakery Case</span>
+      <span class="chip">🥨 Pretzel Warmer</span>
+      <span class="chip">🧋 Tea Bubbler</span>
+      <span class="chip">🧊 Frazil</span>
+      <span class="chip">☕ Cafe Tango</span>
+      <span class="chip">♨️ Steamer</span>
+      <span class="chip">🍟 Fryers</span>
+      <span class="chip">🍕 Ovens</span>
+      <span class="chip">🔥 Pizza Oven</span>
+      <span class="chip">🌡 Fridge Temps</span>
+      <span class="chip">❄️ Freezer Temps</span>
+      <span class="chip">🥖 Bakery Log</span>
+      <span class="chip">🥨 Pretzel Log</span>
+      <span class="chip">🧴 Sanitizer</span>
+      <span class="chip">🌭 Roller Grill</span>
+      <span class="chip">🥜 Peanut Patch</span>
+      <span class="chip">☕ Drink Station</span>
+    </div>
+
+    <h3>Data Saves Automatically</h3>
+    <p>Most inputs in this app save directly to your store's Google Sheet the moment you click away or tap Save. You don't need to hit a "sync" button. If something saves successfully, you'll see a <strong style="color:#16A34A">green confirmation</strong>. If it fails, you'll see a <strong style="color:#CC1F2B">red error message</strong> — try again or alert your manager.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 3 — DAILY INV FORM
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch3">
+  <div class="ch-header dark">
+    <div class="ch-num">03</div>
+    <div class="ch-titles"><small>Chapter Three</small><h2>Daily Inventory Form</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>The Daily Inventory Form tracks your department's inventory costs every day of the week. It covers three sections of the deli: <strong>Deli</strong>, <strong>Branded Deli</strong>, and <strong>Beverage Station</strong>.</p>
+
+    <div class="call tip">
+      <div class="call-icon">📅</div>
+      <div class="call-body"><strong>This form runs Sunday through Saturday.</strong> Each week is its own form. The form defaults to the current week automatically.</div>
+    </div>
+
+    <h3>The Three Sections</h3>
+    <table class="field-table">
+      <thead><tr><th>Section</th><th>What It Covers</th></tr></thead>
+      <tbody>
+        <tr><td>🔵 Deli Inventory</td><td>Hot Deli, Hotdog, Chili Cheese, Peanut Patch</td></tr>
+        <tr><td>🟣 Branded Deli</td><td>Hunt Brothers, Piccadilly Pizza</td></tr>
+        <tr><td>🟦 Beverage Station</td><td>Coffee, Cappuccino, Fountain Drinks, BIBs, Frozen Drinks, Tea</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The Five Rows (Per Section)</h3>
+    <p>Each section has five rows. You fill in a dollar amount for each day of the week (Sun–Sat):</p>
+    <table class="field-table">
+      <thead><tr><th>Row</th><th>Symbol</th><th>What to Enter</th></tr></thead>
+      <tbody>
+        <tr><td>Beginning Inv.</td><td>$</td><td>Dollar value of inventory at the start of the day</td></tr>
+        <tr><td>Purchases</td><td>+</td><td>Dollar value of product received that day</td></tr>
+        <tr><td>% of Retail Sales</td><td>−</td><td>Percentage of retail sales (your manager will tell you this number)</td></tr>
+        <tr><td>Transfers</td><td>+/−</td><td>Product moved in or out from another department or store</td></tr>
+        <tr><td>Ending Inv.</td><td>(auto)</td><td><strong>Calculated automatically</strong> — you do not enter this</td></tr>
+      </tbody>
+    </table>
+
+    <div class="call warn">
+      <div class="call-icon">⚠️</div>
+      <div class="call-body"><strong>Do not type in the Ending Inv. row.</strong> It calculates itself from the other four rows. If it looks wrong, check your other entries first.</div>
+    </div>
+
+    <h3>Step-by-Step: Filling Out the Form</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Go to Deli Pro → Daily Inv. Form</strong>
+          <p>The current week auto-loads. If you need a different week, use the <strong>Week of (Sunday)</strong> date picker at the top and tap <strong>Load Week</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Fill in each column for today's date</strong>
+          <p>Find today's day column (Sun / Mon / Tue…) and enter the dollar amounts for Beginning Inv., Purchases, % of Retail Sales, and Transfers for each section.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Tap 💾 Save All Sections</strong>
+          <p>This saves all three sections at once. You'll see a green confirmation when it's saved.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Other Buttons on This Screen</h3>
+    <table class="field-table">
+      <thead><tr><th>Button</th><th>What It Does</th><th>Who Uses It</th></tr></thead>
+      <tbody>
+        <tr><td>🖨 Print Form</td><td>Opens a print preview of the inventory form</td><td>Anyone</td></tr>
+        <tr><td>📥 Pull Week for Store…</td><td>Loads another store's weekly data for comparison</td><td>Managers / Coordinator</td></tr>
+        <tr><td>🔒 Close Week</td><td>Locks the week permanently — requires your manager's PIN</td><td>Managers only</td></tr>
+      </tbody>
+    </table>
+
+    <div class="call danger">
+      <div class="call-icon">🔴</div>
+      <div class="call-body"><strong>🔒 Close Week cannot be undone.</strong> Once closed, no one can edit that week's data. Only managers should use this button, and only after verifying all entries are correct.</div>
+    </div>
+
+    <h3>Manager PIN Registration</h3>
+    <p>If your store has no managers registered, a <strong>Register Your Manager PIN</strong> banner appears at the top. Managers must register here before they can close a week or sign forms. Fill out the name, email, create a 4–6 digit PIN, confirm it, select the role, and tap <strong>Register</strong>.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 4 — INVENTORY
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch4">
+  <div class="ch-header">
+    <div class="ch-num">04</div>
+    <div class="ch-titles"><small>Chapter Four</small><h2>Inventory Counts</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>The Inventory tab is where you record how much of each item you have on hand. It connects directly to your store's Google Sheet — every number you enter is saved live.</p>
+
+    <h3>Inventory Sub-Tabs</h3>
+    <p>Depending on your store's setup, you'll see either a single tab or multiple tabs at the top of the inventory list:</p>
+    <div class="badge-row">
+      <span class="chip">All Items</span>
+      <span class="chip">🥩 Deli</span>
+      <span class="chip">🍕 Branded Deli</span>
+      <span class="chip">☕ Fountain</span>
+    </div>
+    <p>Start with <strong>All Items</strong> to see everything at once. Use the individual tabs to focus on one section at a time.</p>
+
+    <h3>How to Enter a Count</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Find the item in the list</strong>
+          <p>Items are grouped by section (Deli, Branded Deli, Fountain) with a colored header row separating each group.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Tap the On Hand column for that item</strong>
+          <p>The cell will become active (blue border = ready to type).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Type the count and tap Enter or tap away</strong>
+          <p>The app auto-saves the moment you leave the field. Watch for the color feedback: <strong style="color:#1565C0">blue border</strong> = saving… → <strong style="color:#16A34A">green</strong> = saved ✓ → back to normal.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>The Inventory Columns Explained</h3>
+    <table class="field-table">
+      <thead><tr><th>Column</th><th>What It Means</th></tr></thead>
+      <tbody>
+        <tr><td>Count By</td><td>Unit to count in (lbs, cases, each, etc.) — do not change this</td></tr>
+        <tr><td>Item</td><td>Product name</td></tr>
+        <tr><td>Item #</td><td>Vendor item number for ordering</td></tr>
+        <tr><td>Case Pack</td><td>How many units come in one case</td></tr>
+        <tr><td>On Hand</td><td>Your current count — this is the only column you edit</td></tr>
+        <tr><td>Per</td><td>Unit cost per item (auto-filled from BEK price feed)</td></tr>
+        <tr><td>Total</td><td>Auto-calculated: On Hand × Per</td></tr>
+        <tr><td>📦 Purch?</td><td>Checkbox — mark items you want to pull prices for from the BEK price feed</td></tr>
+      </tbody>
+    </table>
+
+    <div class="call warn">
+      <div class="call-icon">⚠️</div>
+      <div class="call-body"><strong>Check the "Count By" column before entering a number.</strong> If an item is counted in cases but you enter individual units, your total will be way off. When in doubt, ask your manager.</div>
+    </div>
+
+    <h3>OUT / LOW Status Indicators</h3>
+    <p>Some stores track item status. Rows may be highlighted:</p>
+    <div class="badge-row">
+      <span class="badge red">OUT</span>
+      <span class="badge amber">LOW</span>
+      <span class="badge green">OK</span>
+    </div>
+    <p>The sub-tab buttons show a count of how many items are currently OUT. If you see a red number on the "All Items" tab, those items need to be ordered or restocked immediately.</p>
+
+    <h3>Uploading BEK Prices</h3>
+    <p>Managers can upload a price CSV from Ben E. Keith to automatically update the "Per" (unit price) column for checked items.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Check the 📦 Purch? box</strong> for every item you want to price-update
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Tap 📤 Upload BEK Prices</strong>
+          <p>A panel slides open. The CSV file must have columns named <code>item_num</code> and <code>price</code> (or <code>Item Number</code> / <code>Unit Price</code>).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Tap Process &amp; Upload</strong>
+          <p>The app matches items by item number and updates prices. You'll see a summary: how many counts saved, prices updated, and items not found in the feed.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="call danger">
+      <div class="call-icon">🚫</div>
+      <div class="call-body"><strong>Never delete rows from the inventory list.</strong> Deleting rows breaks the formulas in the Google Sheet. If an item needs to be removed or added, contact your manager or coordinator.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 5 — WASTE LOG
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch5">
+  <div class="ch-header red">
+    <div class="ch-num">05</div>
+    <div class="ch-titles"><small>Chapter Five</small><h2>Waste Log</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Every item that gets thrown away — expired product, overproduced food, dropped items, temperature failures — must be logged here. This isn't optional. Accurate waste logging is how we calculate real food cost.</p>
+
+    <div class="call danger">
+      <div class="call-icon">🚨</div>
+      <div class="call-body"><strong>Log waste as it happens.</strong> Don't wait until the end of your shift. You'll forget items, and your food cost will look artificially better than it really is.</div>
+    </div>
+
+    <h3>How to Log Waste</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Go to Deli Pro → Waste Log</strong>
+          <p>You'll see a table of previous entries and a form to add a new one.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Fill in all the fields</strong>
+          <p>See the field guide below.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Tap Save / Add Row</strong>
+          <p>The entry appears in the table and saves to your store's Google Sheet immediately.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Waste Log Fields</h3>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Today's date (auto-fills)</td><td>06/05/2026</td></tr>
+        <tr><td>Item #</td><td>The vendor item number from the inventory list</td><td>BEK-4471</td></tr>
+        <tr><td>Item Name</td><td>Plain-English name of the item</td><td>Rotisserie Chicken</td></tr>
+        <tr><td>Section</td><td>Which part of the deli it came from</td><td>Hot Deli</td></tr>
+        <tr><td>Qty Wasted</td><td>How many units were wasted</td><td>3</td></tr>
+        <tr><td>Unit Price</td><td>Cost per unit (from the inventory "Per" column)</td><td>$4.25</td></tr>
+        <tr><td>Total Cost</td><td>Auto-calculated (Qty × Unit Price)</td><td>$12.75</td></tr>
+        <tr><td>Reason</td><td>Why it was wasted — pick the closest match</td><td>Expired</td></tr>
+        <tr><td>Notes</td><td>Any additional detail — optional but helpful</td><td>Left uncovered overnight</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Common Waste Reasons</h3>
+    <div class="badge-row">
+      <span class="chip">Expired</span>
+      <span class="chip">Overproduction</span>
+      <span class="chip">Temperature Failure</span>
+      <span class="chip">Damaged</span>
+      <span class="chip">Dropped</span>
+      <span class="chip">Customer Return</span>
+      <span class="chip">Spoiled</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 6 — FOOD COST
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch6">
+  <div class="ch-header dark">
+    <div class="ch-num">06</div>
+    <div class="ch-titles"><small>Chapter Six</small><h2>Food Cost Calculator</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>The Food Cost Calculator is filled out <strong>weekly by the department manager</strong>. It tells you what percentage of your sales went toward the cost of the food you sold. Knowing this number is how the department stays profitable.</p>
+
+    <div class="call tip">
+      <div class="call-icon">📊</div>
+      <div class="call-body"><strong>The Coordinator can see every store's food cost in real time.</strong> This number is reviewed regularly. Accurate entries here matter.</div>
+    </div>
+
+    <h3>Food Cost Fields</h3>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>The week-ending date</td></tr>
+        <tr><td>Weekly Sales</td><td>Total deli sales for the week (from your POS report)</td></tr>
+        <tr><td>Beg Inv Deli</td><td>Dollar value of deli inventory at the start of the week</td></tr>
+        <tr><td>Beg Inv Fountain</td><td>Dollar value of fountain inventory at start of week</td></tr>
+        <tr><td>Beg Inv Branded</td><td>Dollar value of branded deli inventory at start of week</td></tr>
+        <tr><td>Purchases — Hunt Brothers</td><td>Total purchases from Hunt Brothers this week</td></tr>
+        <tr><td>Purchases — Icee</td><td>Total purchases from Icee this week</td></tr>
+        <tr><td>Purchases — Ben E. Keith</td><td>Total purchases from Ben E. Keith this week</td></tr>
+        <tr><td>COGS</td><td>Cost of Goods Sold — auto-calculated</td></tr>
+        <tr><td>Food Cost %</td><td><strong>Auto-calculated</strong> — this is your key number</td></tr>
+        <tr><td>Notes</td><td>Anything unusual that affected food cost this week</td></tr>
+      </tbody>
+    </table>
+
+    <h3>What Is a Good Food Cost %?</h3>
+    <p>Your coordinator sets targets for each store. Ask your manager what your store's target percentage is. If your food cost is trending above target, the app will reflect that — and the coordinator will follow up.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 7 — INVOICES & ORDERS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch7">
+  <div class="ch-header">
+    <div class="ch-num">07</div>
+    <div class="ch-titles"><small>Chapter Seven</small><h2>Invoices &amp; Orders</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <h3>Invoices Tab</h3>
+    <p>Every vendor invoice that comes into the deli department needs to be logged here. This creates a paper trail and feeds into the food cost calculation.</p>
+
+    <h4>How to Add an Invoice</h4>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body"><strong>Go to Deli Pro → Invoices</strong></div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Fill in the invoice form</strong>
+          <p>Date, vendor name, invoice number, total amount, what items were on the invoice, and any notes.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Tap Save</strong>
+          <p>The invoice appears in the table below and saves to the sheet.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Invoice Fields</h3>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Date on the invoice</td><td>06/03/2026</td></tr>
+        <tr><td>Vendor</td><td>Company name</td><td>Ben E. Keith</td></tr>
+        <tr><td>Invoice #</td><td>Number printed on the invoice</td><td>INV-20241204</td></tr>
+        <tr><td>Amount ($)</td><td>Total dollar amount</td><td>$342.18</td></tr>
+        <tr><td>Items</td><td>Brief description of what was delivered</td><td>Deli meats, cheeses, condiments</td></tr>
+        <tr><td>Notes</td><td>Discrepancies, credits, short shipments</td><td>2 cases short — credit pending</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="divider" />
+
+    <h3>Orders — Tracking &amp; Status</h3>
+    <p>The Orders section (accessible from the Coordinator Dashboard or linked from Deli Pro) lets managers track what has been ordered, when it was ordered, and whether it has arrived.</p>
+
+    <h4>Order Status Values</h4>
+    <div class="badge-row">
+      <span class="badge blue">Pending</span>
+      <span class="badge blue">Ordered</span>
+      <span class="badge green">Received</span>
+      <span class="badge red">Cancelled</span>
+      <span class="badge amber">Back-Order</span>
+    </div>
+
+    <div class="call tip">
+      <div class="call-icon">📦</div>
+      <div class="call-body"><strong>Update the status when product arrives.</strong> Change "Ordered" to "Received" the same day delivery comes in. An order sitting as "Ordered" for days is a red flag on the coordinator dashboard.</div>
+    </div>
+
+    <h4>Order Fields</h4>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Date of the order (auto-fills to today)</td></tr>
+        <tr><td>Vendor</td><td>Supplier name (e.g., Ben E. Keith)</td></tr>
+        <tr><td>Item</td><td>Specific item being ordered</td></tr>
+        <tr><td>Unit</td><td>Unit of measure (Case, Lb, Each…)</td></tr>
+        <tr><td>Qty</td><td>Quantity to order</td></tr>
+        <tr><td>Status</td><td>Current status of the order</td></tr>
+        <tr><td>Notes</td><td>Special instructions or account numbers</td></tr>
+      </tbody>
+    </table>
+
+    <div class="call danger">
+      <div class="call-icon">🚫</div>
+      <div class="call-body"><strong>All orders need manager approval before being submitted.</strong> Do not submit orders on your own without a manager's sign-off. Duplicate or unauthorized orders create billing problems.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 8 — SUPPLIERS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch8">
+  <div class="ch-header">
+    <div class="ch-num">08</div>
+    <div class="ch-titles"><small>Chapter Eight</small><h2>Suppliers</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>The Suppliers tab is your deli's contact directory for every vendor that delivers product. When a delivery shows up or you need to reach a rep, this is where you look.</p>
+
+    <h3>What's in the Suppliers List</h3>
+    <table class="field-table">
+      <thead><tr><th>Column</th><th>What It Shows</th></tr></thead>
+      <tbody>
+        <tr><td>Supplier</td><td>Company name</td></tr>
+        <tr><td>Rep Name</td><td>Your account rep's name</td></tr>
+        <tr><td>Phone</td><td>Direct phone number</td></tr>
+        <tr><td>Email</td><td>Email address</td></tr>
+        <tr><td>Delivery Day</td><td>Which day(s) they typically deliver</td></tr>
+        <tr><td>Notes</td><td>Order deadlines, special instructions, account numbers</td></tr>
+      </tbody>
+    </table>
+
+    <div class="call tip">
+      <div class="call-icon">📞</div>
+      <div class="call-body"><strong>Tap a phone number on mobile to call directly.</strong> If a delivery is wrong or a rep needs to be reached, the Suppliers tab is faster than hunting for a business card.</div>
+    </div>
+
+    <p>Only managers and coordinators should add or edit supplier records. If a rep's contact info changes, notify your manager to update it.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 9 — LABELS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch9">
+  <div class="ch-header green">
+    <div class="ch-num">09</div>
+    <div class="ch-titles"><small>Chapter Nine</small><h2>Labels — Printing Product Date Labels</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Every prepped item leaving your counter must have a label with the product name, prep date, and use-by date. The Labels tab makes this fast and consistent.</p>
+
+    <h3>How to Print a Label</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Go to Deli Pro → Labels</strong>
+          <p>The Labels tool opens inside the app (it loads as a full-screen panel).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Select the product</strong>
+          <p>Choose from the list or type the product name.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Enter the prep date and use-by date</strong>
+          <p>Today's date fills in automatically. Adjust the use-by date based on your product's shelf life guidelines.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-body">
+          <strong>Print</strong>
+          <p>Send to your label printer. The label will show the product name, prep date/time, and use-by date clearly.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="call danger">
+      <div class="call-icon">🏷️</div>
+      <div class="call-body"><strong>No label = no product on the floor.</strong> A product without a date label is treated as unidentified during inspections and must be discarded. Label everything, every time.</div>
+    </div>
+
+    <div class="call tip">
+      <div class="call-icon">💡</div>
+      <div class="call-body"><strong>Labels can also be accessed directly</strong> by going to <code>/labels.html</code> in your browser. Bookmark it on the prep station tablet for quick access without navigating the full app.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 10 — INSPECTIONS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch10">
+  <div class="ch-header red">
+    <div class="ch-num">10</div>
+    <div class="ch-titles"><small>Chapter Ten</small><h2>Food Safety Inspections</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>The Inspection module is used to conduct formal food safety audits of the deli department. It walks through <strong>14 sections</strong> and over <strong>150 questions</strong>. Each answer is yes, no, or N/A — with photos required whenever the answer is NO.</p>
+
+    <div class="call danger">
+      <div class="call-icon">🚨</div>
+      <div class="call-body"><strong>Every blank answer is treated as a failure</strong> on the Coordinator Dashboard. Every section must have an answer, even if the answer is N/A.</div>
+    </div>
+
+    <h3>Step 1 — Fill In the Inspection Details</h3>
+    <p>Before answering any questions, complete the header fields:</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th></tr></thead>
+      <tbody>
+        <tr><td>Inspector Name</td><td>Your full name — <strong>required</strong></td></tr>
+        <tr><td>Date</td><td>Today's date — auto-fills, adjust if needed</td></tr>
+        <tr><td>On Schedule</td><td>Names of staff currently on the schedule</td></tr>
+        <tr><td>Kitchen Staff</td><td>Names of kitchen staff on duty right now</td></tr>
+        <tr><td>Front Staff</td><td>Names of front-of-house staff on duty</td></tr>
+        <tr><td>Staffing Needed</td><td>Any open positions or staffing gaps</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Step 2 — Answer All 14 Sections</h3>
+    <p>Scroll through each section. For every question, tap one of three buttons:</p>
+    <div class="badge-row">
+      <span class="badge green">YES — Compliant</span>
+      <span class="badge red">NO — Issue Found</span>
+      <span class="badge gray">N/A — Not Applicable</span>
+    </div>
+
+    <p>The section badge at the top of each section updates in real time:</p>
+    <div class="badge-row">
+      <span class="badge gray">Pending — not fully answered</span>
+      <span class="badge green">Pass — all YES</span>
+      <span class="badge red">Issues Found — one or more NOs</span>
+    </div>
+
+    <p>A <strong>progress bar</strong> at the top of the page shows how many of the 150 questions you've answered.</p>
+
+    <h3>Step 3 — Attach Photos for Every NO</h3>
+    <p>When you tap NO on any question, a <strong>photo upload area</strong> appears below that question automatically. You must attach at least one photo documenting the issue. Tap the file/camera area and take a photo directly or upload from your camera roll.</p>
+
+    <div class="call tip">
+      <div class="call-icon">📷</div>
+      <div class="call-body"><strong>Photos are your proof.</strong> They protect you, document the issue, and give the coordinator the context to help fix it remotely.</div>
+    </div>
+
+    <h3>Ice Cream Machine — Maintenance Ticket</h3>
+    <p>If you mark NO for the ice cream machine question, a <strong>Maintenance Ticket form</strong> automatically appears. Fill in:</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>What to Enter</th></tr></thead>
+      <tbody>
+        <tr><td>Ticket Number</td><td>Auto-generated (MNT-XXXXXX) — do not change</td></tr>
+        <tr><td>Reported By</td><td>Your name</td></tr>
+        <tr><td>Priority</td><td>Normal / High / Urgent</td></tr>
+        <tr><td>Equipment</td><td>Pre-filled as "Ice Cream Machine" — adjust if needed</td></tr>
+        <tr><td>Issue Description</td><td>Describe exactly what's wrong in detail</td></tr>
+      </tbody>
+    </table>
+    <p>Tap <strong>Generate Ticket</strong>. The ticket is included in the saved inspection and the PDF export automatically.</p>
+
+    <h3>Step 4 — Add Any Notes</h3>
+    <p>At the bottom of the inspection there's an <strong>Additional Notes</strong> text area. Use this for anything you observed that doesn't fit into the checklist questions — context, explanations, follow-up info.</p>
+
+    <h3>Step 5 — Save &amp; Export</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Tap "Save Inspection to Sheet"</strong>
+          <p>Saves the full inspection result to your store's Google Sheet including your score %, YES/NO/N/A counts, list of all NO items, and follow-up date.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Tap "Export PDF"</strong>
+          <p>Downloads a formatted inspection report PDF with the store info, section results, all NO items highlighted, maintenance ticket (if applicable), notes, and signature lines. File saves as <code>Inspection_Store[#]_[date].pdf</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Follow-Up Date</h3>
+    <p>If the inspection has any NO answers, a <strong>Follow-Up Required</strong> banner appears with a follow-up date set <strong>7 days from the inspection date</strong>. The coordinator tracks these — stores with overdue follow-ups appear in red on the coordinator dashboard.</p>
+
+    <h3>The 14 Inspection Sections</h3>
+    <div class="badge-row">
+      <span class="chip">Storerooms</span>
+      <span class="chip">Refrigerator</span>
+      <span class="chip">Freezer</span>
+      <span class="chip">Cooking Equipment</span>
+      <span class="chip">Hot Hold</span>
+      <span class="chip">Cold Hold</span>
+      <span class="chip">Ice Cream Machines</span>
+      <span class="chip">Personal Hygiene</span>
+      <span class="chip">Chemicals &amp; Cleaning</span>
+      <span class="chip">Pest Control</span>
+      <span class="chip">Labeling &amp; Dating</span>
+      <span class="chip">Cross-Contamination</span>
+      <span class="chip">Allergen Awareness</span>
+      <span class="chip">Overall Facility</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 11 — CLEANING LOGS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch11">
+  <div class="ch-header">
+    <div class="ch-num">11</div>
+    <div class="ch-titles"><small>Chapter Eleven</small><h2>Equipment Cleaning Logs</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Every piece of equipment in your department has a cleaning checklist. When you clean it, you log it here. These logs are your proof that standards were met and they're reviewed during coordinator visits.</p>
+
+    <div class="call warn">
+      <div class="call-icon">⚠️</div>
+      <div class="call-body"><strong>If it's not logged, it didn't happen.</strong> An inspector doesn't take your word for it — they look at the records.</div>
+    </div>
+
+    <h3>Equipment Covered</h3>
+    <table class="field-table">
+      <thead><tr><th>Equipment</th><th>Cleaning Frequency</th><th>Sections in Log</th></tr></thead>
+      <tbody>
+        <tr><td>🍦 Ice Cream Machine</td><td>Every shift (mix level) + weekly</td><td>Mix Level Check / Weekly Maintenance</td></tr>
+        <tr><td>🥖 Bakery Case</td><td>Daily + weekly</td><td>Daily Tasks / Weekly Tasks</td></tr>
+        <tr><td>🥨 Pretzel Warmer</td><td>Daily + weekly</td><td>Daily Tasks / Weekly Tasks</td></tr>
+        <tr><td>🧋 Tea Bubbler</td><td>Daily + weekly (PPM reading required)</td><td>Daily Tasks / Weekly Tasks</td></tr>
+        <tr><td>🧊 Frazil Machine</td><td>Daily + weekly</td><td>Daily Tasks / Weekly Tasks</td></tr>
+        <tr><td>☕ Cafe Tango Machine</td><td>Daily + weekly</td><td>Daily Tasks / Weekly Tasks</td></tr>
+        <tr><td>♨️ Steamer</td><td>Weekly deep clean</td><td>Weekly Deep Clean</td></tr>
+        <tr><td>🍟 Fryers</td><td>Weekly boil-out</td><td>Weekly Deep Clean / Boil-Out</td></tr>
+        <tr><td>🍕 Ovens</td><td>Weekly deep clean</td><td>Weekly Deep Clean</td></tr>
+        <tr><td>🔥 Pizza Oven</td><td>Weekly deep clean</td><td>Weekly Deep Clean</td></tr>
+      </tbody>
+    </table>
+
+    <h3>How to Complete a Cleaning Log</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Go to Deli Logs → select the equipment tab</strong>
+          <p>Find your equipment in the scrolling tab bar.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Fill in the header fields</strong>
+          <p><strong>Date</strong> (auto-fills to today) · <strong>Time</strong> (auto-fills to now) · <strong>Employee Initials</strong> (your initials, max 8 characters)</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Tap each task as you complete it</strong>
+          <p>Tasks are listed in the order you should do them. Tap to check off each one — a checkmark appears and the row turns green. Go through every item on the list.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-body">
+          <strong>Add notes if anything was wrong</strong>
+          <p>Use the Notes / Corrective Actions text area at the bottom for any issues you found during cleaning (broken parts, unusual buildup, anything the manager should know).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">5</div>
+        <div class="step-body">
+          <strong>Tap "Save Log to Sheet"</strong>
+          <p>Your name, timestamp, completed tasks, missed tasks, and notes all save to the Maintenance Logs sheet. Green confirmation = saved.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">6</div>
+        <div class="step-body">
+          <strong>Tap "Export PDF" if a printed copy is needed</strong>
+          <p>The PDF includes the store info, equipment name, date, employee name, completed vs. missed tasks, notes, and signature lines for employee and manager/MOD.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Tea Bubbler — PPM Reading</h3>
+    <p>The Tea Bubbler log has an extra field: <strong>PPM Sanitizer Reading</strong>. Enter the parts-per-million reading from your sanitizer test strip before completing the task checklist. This is required, not optional.</p>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 12 — TEMPERATURE LOGS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch12">
+  <div class="ch-header red">
+    <div class="ch-num">12</div>
+    <div class="ch-titles"><small>Chapter Twelve</small><h2>Temperature Logs</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Temperature logs are required <strong>every 4 hours</strong>. If you're on a standard shift, that means you'll take readings at least twice — once when you arrive and once before you leave.</p>
+
+    <h3>Refrigerator Temp Log</h3>
+    <p><strong>Acceptable range: 35°F – 41°F</strong></p>
+
+    <p>Units tracked:</p>
+    <div class="badge-row">
+      <span class="chip">Walk-in Cooler</span>
+      <span class="chip">Deli Reach-in</span>
+    </div>
+
+    <p>Time slots: <strong>6 AM · 10 AM · 2 PM · 6 PM · 10 PM · 2 AM</strong></p>
+
+    <h3>Freezer Temp Log</h3>
+    <p><strong>Acceptable range: ≤ 0°F (negative)</strong></p>
+
+    <p>Units tracked:</p>
+    <div class="badge-row">
+      <span class="chip">Walk-in Freezer</span>
+      <span class="chip">Display Freezer</span>
+      <span class="chip">Ice Cream Freezer</span>
+    </div>
+
+    <p>Same time slots as refrigerator.</p>
+
+    <h3>How to Log a Temperature Reading</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Go to Deli Logs → Fridge Temps or Freezer Temps</strong>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Find the current time slot row</strong>
+          <p>The time slots run down the left side of the table. Find the row closest to your current time.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Enter the temperature for each unit</strong>
+          <p>Tap the temperature field, type the reading (decimals allowed, e.g., 38.5). If the number is out of range, a <strong style="color:var(--red)">red alert box</strong> appears immediately.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-body">
+          <strong>Enter your initials in the Initials column</strong>
+          <p>Max 5 characters. This records who took the reading.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">5</div>
+        <div class="step-body">
+          <strong>Complete the 5 Daily Tasks checkboxes below the table</strong>
+          <p>These confirm you checked door seals, verified thermometers, alerted the manager if needed, etc.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">6</div>
+        <div class="step-body">
+          <strong>Tap Save and/or Export PDF</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="call danger">
+      <div class="call-icon">🚨</div>
+      <div class="call-body">
+        <strong>Out-of-range reading? Act immediately.</strong>
+        <ul style="margin-top:6px;margin-left:18px">
+          <li>Notify your manager right away — do not wait</li>
+          <li>Move at-risk product to a working unit immediately</li>
+          <li>Product in the danger zone (41°F–135°F) for more than 4 hours must be discarded</li>
+          <li>Document the issue and your corrective action in the Notes field</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 13 — ENTRY LOGS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch13">
+  <div class="ch-header gold">
+    <div class="ch-num">13</div>
+    <div class="ch-titles"><small>Chapter Thirteen</small><h2>Entry Logs — Bakery, Pretzel, Roller Grill, Sanitizer, Drink Station, Peanut Patch</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <p>Entry logs work differently from cleaning logs. Instead of checking off tasks, you <strong>add a new entry each time an event happens</strong> — every batch baked, every warmer load, every sanitizer test. Entries stack up in a table that you can review throughout the day.</p>
+
+    <h3>How Entry Logs Work (All Types)</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <strong>Fill in the form at the top of the screen</strong>
+          <p>Each log type has its own form fields (detailed below).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <strong>Tap "+ Add Entry"</strong>
+          <p>The entry appears in the table below. The form clears for the next entry.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <strong>Take action on entries as needed</strong>
+          <p>Some log types (Bakery, Pretzel, Roller Grill) have action buttons on each row — tap them when the item is discarded, removed, or pulled.</p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <h3>🥖 Bakery Log</h3>
+    <p>Log every item that comes out of the oven.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date Baked</td><td>Auto-fills to today</td></tr>
+        <tr><td>Time Baked</td><td>Enter time item came out of the oven</td></tr>
+        <tr><td>Item Description</td><td>What was baked (e.g., "Chocolate Chip Cookies")</td></tr>
+        <tr><td>Qty</td><td>How many were baked</td></tr>
+        <tr><td>★ Discard By Date</td><td><strong>Auto-fills to 3 days from bake date</strong> — adjust if your product's shelf life is different</td></tr>
+        <tr><td>Discard By Time</td><td>Time of day by which it must be discarded</td></tr>
+        <tr><td>Case Cleaned Date/Time</td><td>Optional — log when the bakery case was cleaned</td></tr>
+        <tr><td>Initials</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+    <p>When an item is discarded, tap the <strong>✓ Discarded</strong> button on that row. The status changes to <span class="badge green">YES</span>.</p>
+    <p>Rows past their discard date turn <strong style="color:var(--red)">red</strong> — those items must be pulled immediately.</p>
+
+    <hr class="divider" />
+
+    <h3>🥨 Pretzel Warmer Log</h3>
+    <p>Log every time items go into the pretzel warmer.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Auto-fills</td></tr>
+        <tr><td>Time Made</td><td>When items went into the warmer</td></tr>
+        <tr><td>Item Type</td><td>Pretzel / Hot Dog / Taquito / Rollerbite / Kolache / Other</td></tr>
+        <tr><td>Qty</td><td>Number of items</td></tr>
+        <tr><td>★ Remove By</td><td><strong>Auto-calculates to +4 hours</strong> from Time Made — read-only</td></tr>
+        <tr><td>Warmer Cleaned Date/Time</td><td>Optional — log when the warmer was cleaned</td></tr>
+        <tr><td>Initials</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+    <p>Tap <strong>✓ Removed</strong> on a row when items come out of the warmer.</p>
+
+    <hr class="divider" />
+
+    <h3>🌭 Roller Grill Log</h3>
+    <p>Log every time items go on the roller grill. Items have a 4-hour hold time.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date Added</td><td>Auto-fills</td></tr>
+        <tr><td>Time Added</td><td>When items went on the grill</td></tr>
+        <tr><td>Item</td><td>Hot Dog / Taquito / Egg Roll / Rollerbite / Kolache / Tornados / Other</td></tr>
+        <tr><td>Qty</td><td>Number of items</td></tr>
+        <tr><td>★ Pull By</td><td><strong>Auto-calculates to +4 hours</strong> — read-only</td></tr>
+        <tr><td>Added By</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+    <p>When items are pulled, tap <strong>✓ Pulled</strong>. The app will ask: <em>"Who pulled this item?"</em> — enter your name or initials. The date, time, and name are all recorded automatically.</p>
+
+    <div class="call danger">
+      <div class="call-icon">🔴</div>
+      <div class="call-body"><strong>Pull By times turn red when overdue.</strong> Any item on the grill past 4 hours is in the food safety danger zone. Pull it and discard it — no exceptions.</div>
+    </div>
+
+    <hr class="divider" />
+
+    <h3>🧴 Sanitizer Log</h3>
+    <p>Test your sanitizer solution <strong>minimum twice per day</strong> — once AM and once PM.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Auto-fills</td></tr>
+        <tr><td>Test # </td><td>1 = AM / 2 = PM</td></tr>
+        <tr><td>Time Tested</td><td>When you tested it</td></tr>
+        <tr><td>Solution Type</td><td>Quat Sanitizer (200–400 PPM) / Chlorine Bleach (50–100 PPM) / Other</td></tr>
+        <tr><td>Concentration (PPM)</td><td>The reading from your test strip</td></tr>
+        <tr><td>Pass / Fail</td><td>PASS if in range / FAIL if out of range</td></tr>
+        <tr><td>Corrective Action</td><td>Required if FAIL — what you did to fix it (e.g., "Made fresh solution, retested at 300 PPM")</td></tr>
+        <tr><td>Initials</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+
+    <p>Acceptable ranges:</p>
+    <div class="badge-row">
+      <span class="chip">Quat: 200–400 PPM</span>
+      <span class="chip">Chlorine Bleach: 50–100 PPM</span>
+    </div>
+
+    <div class="call danger">
+      <div class="call-icon">🚫</div>
+      <div class="call-body"><strong>FAIL = discard the solution immediately.</strong> Make a fresh batch, retest it, and log the corrective action. Never use sanitizer solution that fails the test.</div>
+    </div>
+
+    <hr class="divider" />
+
+    <h3>☕ Drink Station Log</h3>
+    <p>Log every time product is made AND every time a machine is cleaned.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Auto-fills</td></tr>
+        <tr><td>Station</td><td>Tea / Coffee / Tango / Frazil</td></tr>
+        <tr><td>Product / Flavor</td><td>What was made (e.g., "Sweet Tea, House Blend")</td></tr>
+        <tr><td>Time Made / Brewed</td><td>Time product was made</td></tr>
+        <tr><td>Machine Cleaned Date/Time</td><td>Optional — fill in when the machine was fully broken down and cleaned</td></tr>
+        <tr><td>Initials</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="divider" />
+
+    <h3>🥜 Peanut Patch Log</h3>
+    <p>Log your daily peanut patch maintenance. A full-name sign-off is required on every entry.</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Date</td><td>Auto-fills</td></tr>
+        <tr><td>Time</td><td>When the task was completed</td></tr>
+        <tr><td>Switched to New Container?</td><td>YES / NO</td></tr>
+        <tr><td>New Lid Used?</td><td>YES / NO</td></tr>
+        <tr><td>Old Container Cleaned?</td><td>YES / NO</td></tr>
+        <tr><td>✍ Signed By</td><td><strong>Full name required</strong> — not just initials</td></tr>
+        <tr><td>Initials</td><td>Your initials</td></tr>
+      </tbody>
+    </table>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 14 — COORDINATOR DASHBOARD
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch14">
+  <div class="ch-header dark">
+    <div class="ch-num">14</div>
+    <div class="ch-titles"><small>Chapter Fourteen</small><h2>Coordinator Dashboard</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <div class="call warn">
+      <div class="call-icon">🔐</div>
+      <div class="call-body"><strong>This section is for Coordinators and District Managers only.</strong> Store-level staff do not need to access this view. It is included here for reference and training completeness.</div>
+    </div>
+
+    <p>The Coordinator Dashboard is a chain-wide view of all 43+ stores. It's accessed by adding <code>?view=coordinator</code> to the URL, or by clicking the <strong>🗂 Coordinator View</strong> link on the store picker screen.</p>
+
+    <h3>What the Dashboard Shows</h3>
+    <table class="field-table">
+      <thead><tr><th>Section</th><th>What It Shows</th></tr></thead>
+      <tbody>
+        <tr><td>Follow-Up Alerts</td><td>Red banner listing all stores with inspection follow-ups due within 3 days — overdue stores shown first</td></tr>
+        <tr><td>Inspection Summary Table</td><td>Every store's last inspection date, score %, number of NOs, follow-up date, and status (Overdue / Pending / Clear)</td></tr>
+        <tr><td>Food Cost Summary</td><td>Every store's current food cost % pulled live from each store's sheet</td></tr>
+        <tr><td>Orders Section</td><td>View and add orders for any store — select a store from the dropdown, tap Load Orders</td></tr>
+        <tr><td>Recipes Section</td><td>View and add recipes for any store</td></tr>
+        <tr><td>Weekly Backup</td><td>Creates a dated snapshot of every store's inventory — keeps the last 4 backups per store automatically</td></tr>
+        <tr><td>Manager Registration</td><td>Add, view, and remove managers with PIN access across all stores</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Status Color Coding</h3>
+    <div class="badge-row">
+      <span class="badge green">Clear — no open issues</span>
+      <span class="badge amber">Pending — follow-up not yet overdue</span>
+      <span class="badge red">Overdue — follow-up date has passed</span>
+      <span class="badge gray">No Data — no inspection on record</span>
+    </div>
+
+    <h3>Filtering the Inspection Table</h3>
+    <p>Use the three filter controls at the top of the dashboard to narrow down what you're looking at:</p>
+    <ul>
+      <li><strong>Filter by Status</strong> — show only Overdue, Pending, or Clear stores</li>
+      <li><strong>Min Score %</strong> — show only stores below a certain score</li>
+      <li><strong>Search Store</strong> — search by store number or city name</li>
+    </ul>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     CH 15 — COMMON ERRORS
+══════════════════════════════════════════════ -->
+<div class="chapter" id="ch15">
+  <div class="ch-header red">
+    <div class="ch-num">15</div>
+    <div class="ch-titles"><small>Chapter Fifteen</small><h2>Common Errors &amp; How to Fix Them</h2></div>
+  </div>
+  <div class="ch-body">
+
+    <table class="field-table">
+      <thead><tr><th>Error / Problem</th><th>What It Means</th><th>What to Do</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>"Service Account Not Configured"</td>
+          <td>The app hasn't been connected to Google by an admin yet</td>
+          <td>Contact your Food &amp; Beverage Coordinator — not a user fix</td>
+        </tr>
+        <tr>
+          <td>"Unknown Store"</td>
+          <td>The store number in the URL doesn't exist in the system</td>
+          <td>Go back to the store picker and select your store from the dropdown</td>
+        </tr>
+        <tr>
+          <td>"No Sheet ID configured"</td>
+          <td>Your store's Google Sheet hasn't been linked</td>
+          <td>Contact your coordinator to run the migration setup</td>
+        </tr>
+        <tr>
+          <td>Red error on saving a count</td>
+          <td>Save failed — usually a network or permissions issue</td>
+          <td>Check your internet, try again. If it keeps failing, the service account may not be shared on the sheet — contact coordinator</td>
+        </tr>
+        <tr>
+          <td>Tab missing (auto-created)</td>
+          <td>A sheet tab didn't exist — the app created it automatically</td>
+          <td>Normal behavior. The tab is now there — reload and try again</td>
+        </tr>
+        <tr>
+          <td>Ending Inv. shows wrong number</td>
+          <td>One of the other four rows has a wrong entry</td>
+          <td>Check Beginning Inv., Purchases, % of Retail Sales, and Transfers — the Ending Inv. row is calculated, not entered</td>
+        </tr>
+        <tr>
+          <td>BEK upload shows "X items not in BEK feed"</td>
+          <td>Those items' item numbers don't match the BEK CSV</td>
+          <td>Check that the item numbers in the inventory list match what's in the CSV exactly</td>
+        </tr>
+        <tr>
+          <td>Inspection not saving — "Please enter inspector name"</td>
+          <td>The Inspector Name field at the top is blank</td>
+          <td>Scroll to the top of the inspection and fill in the Inspector Name field</td>
+        </tr>
+        <tr>
+          <td>App loads very slowly</td>
+          <td>Large amount of data in the Google Sheet, or slow internet</td>
+          <td>Be patient on first load — data is pulled live. Subsequent loads in the same session are faster</td>
+        </tr>
+        <tr>
+          <td>Close Week button is disabled / not visible</td>
+          <td>No manager PIN is registered for your store, or there are no NO entries to trigger the confirmation</td>
+          <td>Register a manager PIN in the Daily Inv. Form banner first</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="call tip">
+      <div class="call-icon">💡</div>
+      <div class="call-body"><strong>When in doubt, refresh the page and try again.</strong> Most one-off errors resolve with a fresh load. If an error persists across multiple attempts, document exactly what you were doing and contact your coordinator.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     QUICK REFERENCE CARD
+══════════════════════════════════════════════ -->
+<div class="chapter">
+  <div class="ch-header gold">
+    <div class="ch-num">⚡</div>
+    <div class="ch-titles"><small>Reference Card</small><h2>Daily Shift Quick Reference</h2></div>
+  </div>
+  <div class="ch-body">
+    <p style="margin-bottom:16px">Cut this out and post it in the deli. Print it. Laminate it. Use it every single shift.</p>
+
+    <h3>Every Shift — In Order</h3>
+    <ul class="cklist">
+      <li>Open Deli Pro and confirm your store loaded correctly in the header</li>
+      <li>Log refrigerator temperatures (Deli Logs → Fridge Temps)</li>
+      <li>Log freezer temperatures (Deli Logs → Freezer Temps)</li>
+      <li>Check bakery log for any items past their discard date — pull and discard</li>
+      <li>Check roller grill log for items past their Pull By time — pull and discard</li>
+      <li>Check pretzel warmer log for items past their Remove By time</li>
+      <li>Log new bakery items as they come out of the oven (Bakery Log)</li>
+      <li>Log roller grill items each time items go on (Roller Grill Log)</li>
+      <li>Log pretzel warmer items each time items go in (Pretzel Log)</li>
+      <li>Test and log sanitizer solution — AM and PM (Sanitizer Log)</li>
+      <li>Log waste as items are discarded (Deli Pro → Waste Log)</li>
+      <li>Log end-of-shift temperatures before clocking out</li>
+      <li>Complete any equipment cleaning logs for equipment cleaned this shift</li>
+    </ul>
+
+    <h3>Weekly (Manager)</h3>
+    <ul class="cklist">
+      <li>Complete the Food Cost Calculator (Deli Pro → Food Cost)</li>
+      <li>Log all invoices received this week (Deli Pro → Invoices)</li>
+      <li>Update order statuses to Received for all delivered orders</li>
+      <li>Complete weekly deep-clean logs for Steamer, Fryers, Ovens, Pizza Oven</li>
+      <li>Close the week with your PIN after verifying all daily inv. form entries</li>
+    </ul>
+
+    <h3>Save Status Colors — What They Mean</h3>
+    <div class="badge-row">
+      <span class="chip" style="border-color:#1565C0;color:#1565C0">Blue border = saving…</span>
+      <span class="chip" style="border-color:#16A34A;color:#16A34A">Green = saved ✓</span>
+      <span class="chip" style="border-color:#CC1F2B;color:#CC1F2B">Red = error — try again</span>
+    </div>
+
+    <h3>Temperature Safe Zones</h3>
+    <table class="field-table">
+      <thead><tr><th>Unit</th><th>Safe Range</th><th>Action if Out of Range</th></tr></thead>
+      <tbody>
+        <tr><td>Refrigerator / Cooler</td><td>35°F – 41°F</td><td>Alert manager immediately, move product</td></tr>
+        <tr><td>Freezer</td><td>≤ 0°F</td><td>Alert manager immediately, move product</td></tr>
+        <tr><td>Hot Hold</td><td>135°F or above</td><td>Reheat to 165°F or discard</td></tr>
+        <tr><td>Roller Grill / Warmer hold time</td><td>Maximum 4 hours</td><td>Pull and discard after 4 hours</td></tr>
+        <tr><td>Bakery items (baked goods)</td><td>Discard after 3 days</td><td>Pull when Discard By date turns red</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Sanitizer PPM Ranges</h3>
+    <div class="badge-row">
+      <span class="chip">Quat: 200–400 PPM ✓</span>
+      <span class="chip">Chlorine Bleach: 50–100 PPM ✓</span>
+      <span class="chip">Outside range = FAIL → discard &amp; remake</span>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- end .page -->
+
+<!-- FOOTER -->
+<footer>
+  <strong>KEITH'S SUPERSTORES — FOOD &amp; BEVERAGE DEPARTMENT</strong><br />
+  <span style="display:inline-block;margin-top:8px">
+    Deli Pro Employee Training Manual &nbsp;·&nbsp; Confidential — Internal Use Only &nbsp;·&nbsp; © 2026 S.C.D. All Rights Reserved
+  </span>
+</footer>
+
+</body>
+</html>
