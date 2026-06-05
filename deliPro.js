@@ -110,24 +110,36 @@ async function switchDeliTab(container, tabId) {
     ? `<br><br>Service account: <code>${SERVICE_ACCOUNT_EMAIL}</code><br>This email must be shared with the store's Google Sheet.`
     : '';
 
-  // Inventory: load each section from its own dedicated sheet tab
-  if (tabId === 'inventory') {
+  // Inventory: if a dedicated count sheet exists, load Deli/Branded Deli/Fountain tabs;
+  // otherwise fall through to load the single "Inventory" tab from the main sheet.
+  if (tabId === 'inventory' && deliState.countSheetId) {
     const INV_SECTION_DEFS = [
       { key: 'deli',     label: '🥩 Deli',          tabName: 'Deli' },
       { key: 'branded',  label: '🍕 Branded Deli',   tabName: 'Branded Deli' },
       { key: 'beverage', label: '☕ Fountain',        tabName: 'Fountain' },
     ];
-    const sheetId = deliState.countSheetId || deliState.sheetId;
+    const sheetId = deliState.countSheetId;
 
     content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading inventory sections…</p></div>`;
 
+    // Fallback tab name variants for each section (some stores use different capitalization/naming)
+    const TAB_ALIASES = {
+      'Deli':        ['Deli', 'DELI', 'Deli Counter', 'Deli Items', 'Deli Inventory'],
+      'Branded Deli':['Branded Deli', 'BRANDED DELI', 'Branded', 'Hunt Brothers', 'HB'],
+      'Fountain':    ['Fountain', 'FOUNTAIN', 'Beverage', 'Beverages', 'Beverage Station', 'Icee', 'ICEE'],
+    };
     const sections = await Promise.all(INV_SECTION_DEFS.map(async def => {
-      try {
-        const res = await sheetsGet(deliState.sa, sheetId, `${def.tabName}!A1:Z1000`);
-        return { ...def, sheetId, rows: res.values || [] };
-      } catch (_) {
-        return { ...def, sheetId, rows: [] };
+      const aliases = TAB_ALIASES[def.tabName] || [def.tabName];
+      let lastErr = null;
+      for (const name of aliases) {
+        try {
+          const res = await sheetsGet(deliState.sa, sheetId, `${name}!A1:Z1000`);
+          if (res.values && res.values.length > 0) return { ...def, sheetId, rows: res.values, tabName: name };
+          // Tab exists but is empty — stop trying aliases
+          return { ...def, sheetId, rows: [], tabName: name };
+        } catch (e) { lastErr = e; /* try next alias */ }
       }
+      return { ...def, sheetId, rows: [], fetchError: lastErr ? lastErr.message : null };
     }));
 
     // Cache combined for waste log item lookup
@@ -223,10 +235,19 @@ function renderCountSheetSections(content, sections) {
     const raw = sec.rows || [];
     if (raw.length === 0) return { headers: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, numCols: 7, headerRowIdx: 0 };
 
-    // Find header row by looking for "Count By" or "Item#"
+    // Find header row: prefer a row with 'Count By'/'Item#' pattern; fall back to the
+    // row with the most populated cells in the first 6 rows (title rows are sparse).
     let headerRowIdx = 0;
-    for (let ri = 0; ri < Math.min(5, raw.length); ri++) {
-      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; break; }
+    let headerFound = false;
+    for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; headerFound = true; break; }
+    }
+    if (!headerFound) {
+      let maxCells = 0;
+      for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+        const cnt = (raw[ri] || []).filter(c => (c || '').trim()).length;
+        if (cnt > maxCells) { maxCells = cnt; headerRowIdx = ri; }
+      }
     }
     const headerRow = raw[headerRowIdx] || [];
     const dataRows  = raw.slice(headerRowIdx + 1).filter(r => r.some(c => (c || '').trim()));
@@ -274,14 +295,18 @@ function renderCountSheetSections(content, sections) {
         }
         return `<td>${val}</td>`;
       }).join('');
-      const itemNum = (r[p.itemNumColIdx] || '').trim();
-      const purch = `<td style="text-align:center;padding:3px 5px"><input type="checkbox" class="cs-purch-chk"
-        data-cs-row="${sheetRow}" data-item-num="${itemNum}"
-        data-per-col="${p.perColIdx}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}"
-        style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
-      html += `<tr data-pane-sec="${sec.key}">${cells}${purch}</tr>`;
-    });
-    return html;
+
+      const itemNum = (r[itemNumColIdx]||'').trim();
+      const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" data-cs-tab="${sec.tabName}" data-cs-sid="${sec.sheetId}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
+      return `<tr>${cells}${purchCell}</tr>`;
+    }).join('');
+
+    const errDetail = sec.fetchError
+      ? `<br><small style="color:var(--red)">API error: ${sec.fetchError}</small>`
+      : `<br><small style="color:var(--muted)">Tab must be named exactly "<strong>${sec.tabName}</strong>" in this store's Google Sheet.</small>`;
+    const emptyMsg = `<tr><td colspan="${numCols+1}" style="text-align:center;color:var(--muted);padding:28px">No items found in the <strong>${sec.tabName}</strong> sheet tab (${dataRows.length} rows fetched, ${dataRows.filter(r=>r.some(c=>(c||'').trim())).length} non-blank).${errDetail}</td></tr>`;
+
+    return { colHdrs, rowsHTML: rowsHTML || emptyMsg, outCnt };
   }
 
   const parsed = sections.map(sec => ({ sec, p: parseSection(sec) }));
