@@ -994,6 +994,27 @@ function renderDailyInvForm(content, sheetRows) {
         </div>
       </div>
 
+      <!-- Self-Registration banner (shown if no managers registered for this store) -->
+      <div id="di-register-banner" style="display:none;margin-bottom:12px">
+        <div class="card" style="border:2px solid var(--ks-blue)">
+          <div class="card-title" style="font-size:13px">Register Your Manager PIN</div>
+          <p style="font-size:13px;color:var(--muted);margin:0 0 10px">No manager is registered for Store #${deliState.storeNum} yet. Register your PIN below to sign ICF forms, transfers, and close the week.</p>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-row"><label>Full Name</label><input type="text" id="self-reg-name" placeholder="Your name" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div class="form-row"><label>Email</label><input type="email" id="self-reg-email" placeholder="your@email.com" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div class="form-row"><label>Create PIN (4–6 digits)</label><input type="password" id="self-reg-pin" maxlength="6" placeholder="••••" style="width:100px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row"><label>Confirm PIN</label><input type="password" id="self-reg-pin2" maxlength="6" placeholder="••••" style="width:100px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row"><label>Role</label>
+              <select id="self-reg-role" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit">
+                <option>Store Manager</option><option>Assistant Manager</option><option>Deli Manager</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" id="self-reg-btn">Register</button>
+          </div>
+          <div id="self-reg-status" style="font-size:13px;margin-top:8px"></div>
+        </div>
+      </div>
+
       <div id="di-sections">
         ${DAILY_INV_SECTIONS.map(buildSectionCard).join('')}
       </div>
@@ -1254,11 +1275,106 @@ function renderDailyInvForm(content, sheetRows) {
       content.querySelectorAll('.di-input').forEach(i => { i.disabled = true; i.style.background = 'var(--bg)'; });
       content.querySelector('#di-save-btn').disabled = true;
 
+      // Show recount unlock option
+      const recountDiv = document.createElement('div');
+      recountDiv.style.cssText = 'margin-top:10px';
+      recountDiv.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="di-recount-btn" style="font-size:12px;color:var(--muted)">Request Recount / Unlock</button>
+        <div id="di-recount-panel" style="display:none;margin-top:10px;background:#fff8e1;border-radius:8px;padding:12px;border:1.5px solid var(--amber)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#b45309">Request Recount</div>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Unlocking requires your PIN and a reason. This will be logged and emailed to the district office.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-row"><label>PIN</label><input type="password" id="di-recount-pin" maxlength="6" placeholder="••••" style="width:90px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:15px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row" style="flex:1;min-width:200px"><label>Reason for Recount</label><input type="text" id="di-recount-reason" placeholder="e.g. Miscounted chicken section" style="width:100%;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <button class="btn btn-sm" id="di-recount-confirm-btn" style="background:var(--amber);color:#fff;border:none">Unlock for Recount</button>
+          </div>
+          <div id="di-recount-status" style="font-size:13px;margin-top:6px"></div>
+        </div>`;
+      closePanel.parentNode.insertBefore(recountDiv, closePanel.nextSibling);
+
+      recountDiv.querySelector('#di-recount-btn').addEventListener('click', () => {
+        const rp = recountDiv.querySelector('#di-recount-panel');
+        rp.style.display = rp.style.display === 'none' ? '' : 'none';
+      });
+
+      recountDiv.querySelector('#di-recount-confirm-btn').addEventListener('click', async () => {
+        const rBtn     = recountDiv.querySelector('#di-recount-confirm-btn');
+        const rStatus  = recountDiv.querySelector('#di-recount-status');
+        const rPin     = recountDiv.querySelector('#di-recount-pin').value.trim();
+        const rReason  = recountDiv.querySelector('#di-recount-reason').value.trim();
+        if (!rPin)    { rStatus.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+        if (!rReason) { rStatus.innerHTML = '<span style="color:var(--red)">A reason is required.</span>'; return; }
+
+        rBtn.disabled = true; rBtn.textContent = 'Verifying…';
+        const mgr = await verifyManagerPinForStore(rPin, deliState.storeNum);
+        if (!mgr) {
+          rStatus.innerHTML = '<span style="color:var(--red)">PIN not recognized.</span>';
+          rBtn.disabled = false; rBtn.textContent = 'Unlock for Recount'; return;
+        }
+
+        try {
+          await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Recount Log', ['Week Of','Store#','Store Name','Unlocked By','Reason','Timestamp']);
+          await sheetsAppend(deliState.sa, deliState.sheetId, 'Recount Log!A1', [[
+            weekOf, deliState.storeNum, deliState.storeName || '',
+            mgr.name, rReason, new Date().toLocaleString(),
+          ]]);
+          // Re-enable inputs
+          content.querySelectorAll('.di-input').forEach(i => { i.disabled = false; i.style.background = 'var(--white)'; });
+          content.querySelector('#di-save-btn').disabled = false;
+          closeWeekBtn.disabled = false; closeWeekBtn.textContent = '🔒 Close Week';
+          rStatus.innerHTML = `<span style="color:var(--green)">✓ Unlocked by ${mgr.name}. Reason logged.</span>`;
+          recountDiv.querySelector('#di-recount-panel').style.display = 'none';
+          recountDiv.querySelector('#di-recount-btn').style.display = 'none';
+        } catch(err) {
+          rStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+          rBtn.disabled = false; rBtn.textContent = 'Unlock for Recount';
+        }
+      });
+
     } catch(err) {
       closeStatusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
       closeConfirmBtn.disabled = false; closeConfirmBtn.textContent = 'Confirm Close Week';
     }
   });
+
+  // ── Self-Registration (shown if no manager registered for this store) ──
+  (async () => {
+    if (!deliState.sheetId) return;
+    try {
+      const res  = await sheetsGet(deliState.sa, deliState.sheetId, 'Managers!A2:E200');
+      const rows = (res.values || []);
+      const hasManager = rows.some(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
+      if (!hasManager) content.querySelector('#di-register-banner').style.display = 'block';
+    } catch(_) {
+      content.querySelector('#di-register-banner').style.display = 'block';
+    }
+
+    const selfRegBtn = content.querySelector('#self-reg-btn');
+    if (!selfRegBtn) return;
+    selfRegBtn.addEventListener('click', async () => {
+      const name   = content.querySelector('#self-reg-name').value.trim();
+      const email  = content.querySelector('#self-reg-email').value.trim();
+      const pin    = content.querySelector('#self-reg-pin').value.trim();
+      const pin2   = content.querySelector('#self-reg-pin2').value.trim();
+      const role   = content.querySelector('#self-reg-role').value;
+      const status = content.querySelector('#self-reg-status');
+
+      if (!name)           { status.innerHTML = '<span style="color:var(--red)">Name required.</span>'; return; }
+      if (!pin || pin.length < 4) { status.innerHTML = '<span style="color:var(--red)">PIN must be 4–6 digits.</span>'; return; }
+      if (pin !== pin2)    { status.innerHTML = '<span style="color:var(--red)">PINs do not match.</span>'; return; }
+
+      selfRegBtn.disabled = true; selfRegBtn.textContent = 'Registering…';
+      try {
+        await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Managers', ['Name','Store#','PIN','Email','Role']);
+        await sheetsAppend(deliState.sa, deliState.sheetId, 'Managers!A1', [[name, deliState.storeNum, pin, email, role]]);
+        status.innerHTML = `<span style="color:var(--green)">✓ Registered! Your PIN is set. You can now sign forms and close the week.</span>`;
+        content.querySelector('#di-register-banner').style.display = 'none';
+      } catch(err) {
+        status.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+        selfRegBtn.disabled = false; selfRegBtn.textContent = 'Register';
+      }
+    });
+  })();
 }
 
 // ════════════════════════════════════════

@@ -18,6 +18,7 @@ function onSheetEdit(e) {
 
   if (name === 'Merchandise Transfer') handleTransferComplete(e, sheet);
   if (name === 'Week Closures')        handleWeekClosure(e, sheet);
+  if (name === 'Recount Log')          handleRecountUnlock(e, sheet);
 }
 
 // ── Merchandise Transfer — fires when Status column = COMPLETE ─
@@ -154,6 +155,40 @@ function handleWeekClosure(e, sheet) {
     tfSummary,
     '',
     'Full details are in the Google Sheet.',
+  ].join('\n');
+
+  GmailApp.sendEmail(DISTRICT_EMAILS.join(','), subject, body);
+}
+
+// ── Recount Unlock — fires when a row is added to Recount Log ─
+function handleRecountUnlock(e, sheet) {
+  var sheet = e.source.getActiveSheet();
+  if (sheet.getName() !== 'Recount Log') return;
+
+  var row  = e.range.getRow();
+  if (row < 2) return;
+  var data = sheet.getRange(row, 1, 1, 6).getValues()[0];
+  if (!data[3]) return; // no name = header row
+
+  var weekOf    = data[0] || '';
+  var storeNum  = data[1] || '';
+  var storeName = data[2] || '';
+  var unlockedBy = data[3] || '';
+  var reason    = data[4] || '';
+  var ts        = data[5] || new Date().toLocaleString();
+
+  var subject = 'RECOUNT REQUEST: Store #' + storeNum + ' — Week of ' + weekOf;
+  var body = [
+    'RECOUNT / UNLOCK REQUEST',
+    '',
+    'Store:       #' + storeNum + (storeName ? ' — ' + storeName : ''),
+    'Week Of:     ' + weekOf,
+    'Requested By: ' + unlockedBy,
+    'Reason:      ' + reason,
+    'Timestamp:   ' + ts,
+    '',
+    'This store has unlocked their closed week to make corrections.',
+    'Please review once they re-submit.',
   ].join('\n');
 
   GmailApp.sendEmail(DISTRICT_EMAILS.join(','), subject, body);
