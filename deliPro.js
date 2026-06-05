@@ -2063,7 +2063,7 @@ function renderInventory(content, rows) {
   const INV_SECTION_TABS = [
     { key: 'all',      label: 'All Items' },
     { key: 'deli',     label: 'Deli' },
-    { key: 'branded',  label: 'Hunt Brothers' },
+    { key: 'branded',  label: 'Branded Deli' },
     { key: 'beverage', label: 'Fountain' },
   ];
 
