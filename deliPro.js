@@ -9,6 +9,7 @@ const DELI_TABS = {
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
+  labels:    { label: 'Labels',      virtual: true },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
@@ -91,6 +92,18 @@ async function switchDeliTab(container, tabId) {
 
   if (tabId === 'training') {
     renderTraining(content);
+    return;
+  }
+
+  if (tabId === 'labels') {
+    content.innerHTML = `
+      <div style="height:calc(100vh - 120px);min-height:500px">
+        <iframe src="labels.html"
+          style="width:100%;height:100%;border:none;display:block;border-radius:var(--radius)"
+          allow="clipboard-write"
+          loading="lazy"
+        ></iframe>
+      </div>`;
     return;
   }
 
@@ -994,6 +1007,27 @@ function renderDailyInvForm(content, sheetRows) {
         </div>
       </div>
 
+      <!-- Self-Registration banner (shown if no managers registered for this store) -->
+      <div id="di-register-banner" style="display:none;margin-bottom:12px">
+        <div class="card" style="border:2px solid var(--ks-blue)">
+          <div class="card-title" style="font-size:13px">Register Your Manager PIN</div>
+          <p style="font-size:13px;color:var(--muted);margin:0 0 10px">No manager is registered for Store #${deliState.storeNum} yet. Register your PIN below to sign ICF forms, transfers, and close the week.</p>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-row"><label>Full Name</label><input type="text" id="self-reg-name" placeholder="Your name" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div class="form-row"><label>Email</label><input type="email" id="self-reg-email" placeholder="your@email.com" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div class="form-row"><label>Create PIN (4–6 digits)</label><input type="password" id="self-reg-pin" maxlength="6" placeholder="••••" style="width:100px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row"><label>Confirm PIN</label><input type="password" id="self-reg-pin2" maxlength="6" placeholder="••••" style="width:100px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row"><label>Role</label>
+              <select id="self-reg-role" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit">
+                <option>Store Manager</option><option>Assistant Manager</option><option>Deli Manager</option>
+              </select>
+            </div>
+            <button class="btn btn-primary btn-sm" id="self-reg-btn">Register</button>
+          </div>
+          <div id="self-reg-status" style="font-size:13px;margin-top:8px"></div>
+        </div>
+      </div>
+
       <div id="di-sections">
         ${DAILY_INV_SECTIONS.map(buildSectionCard).join('')}
       </div>
@@ -1002,7 +1036,23 @@ function renderDailyInvForm(content, sheetRows) {
         <button class="btn btn-primary" id="di-save-btn">💾 Save All Sections</button>
         <button class="btn btn-ghost" id="di-print-form-btn">🖨 Print Form</button>
         <button class="btn btn-ghost" id="di-pull-week-btn">📥 Pull Week for Store…</button>
+        <button class="btn btn-ghost" id="di-close-week-btn" style="border-color:var(--red);color:var(--red)">🔒 Close Week</button>
         <div id="di-status" style="font-size:13px"></div>
+      </div>
+
+      <!-- Close Week panel -->
+      <div id="di-close-panel" style="display:none;margin-top:12px;background:#fff3f3;border-radius:8px;padding:14px;border:1.5px solid var(--red)">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:var(--red)">🔒 Close Week — ${weekOf}</div>
+        <p style="font-size:13px;margin:0 0 10px">This will lock all counts, ICF entries, and transfers for this week and email a full summary to the district office. This cannot be undone.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-row">
+            <label>Your Manager PIN</label>
+            <input type="password" id="di-close-pin" maxlength="6" placeholder="••••" style="width:100px;padding:8px 10px;border:1.5px solid var(--red);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit">
+          </div>
+          <button class="btn btn-sm" id="di-close-confirm-btn" style="background:var(--red);color:#fff;border:none">Confirm Close Week</button>
+          <button class="btn btn-ghost btn-sm" id="di-close-cancel-btn">Cancel</button>
+        </div>
+        <div id="di-close-status" style="font-size:13px;margin-top:8px"></div>
       </div>
 
       <!-- Pull Week panel -->
@@ -1158,9 +1208,580 @@ function renderDailyInvForm(content, sheetRows) {
       pullGoBtn.disabled = false; pullGoBtn.textContent = 'Pull Week';
     }
   });
+
+  // ── Close Week ──
+  const closeWeekBtn    = content.querySelector('#di-close-week-btn');
+  const closePanel      = content.querySelector('#di-close-panel');
+  const closeCancelBtn  = content.querySelector('#di-close-cancel-btn');
+  const closeConfirmBtn = content.querySelector('#di-close-confirm-btn');
+  const closeStatusEl   = content.querySelector('#di-close-status');
+
+  closeWeekBtn.addEventListener('click', () => {
+    closePanel.style.display = closePanel.style.display === 'none' ? '' : 'none';
+  });
+  closeCancelBtn.addEventListener('click', () => { closePanel.style.display = 'none'; });
+
+  closeConfirmBtn.addEventListener('click', async () => {
+    const pin = content.querySelector('#di-close-pin').value.trim();
+    if (!pin) { closeStatusEl.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+
+    closeConfirmBtn.disabled = true; closeConfirmBtn.textContent = 'Verifying…';
+    const manager = await verifyManagerPinForStore(pin, deliState.storeNum);
+    if (!manager) {
+      closeStatusEl.innerHTML = '<span style="color:var(--red)">PIN not recognized for this store.</span>';
+      closeConfirmBtn.disabled = false; closeConfirmBtn.textContent = 'Confirm Close Week'; return;
+    }
+
+    closeConfirmBtn.textContent = 'Closing week…';
+    closeStatusEl.innerHTML = '<span style="color:var(--muted)">Gathering data…</span>';
+
+    try {
+      const closedAt  = new Date().toLocaleString();
+      const storeLabel = `#${deliState.storeNum}${deliState.storeName ? ' — ' + deliState.storeName : ''}`;
+
+      // 1. Fetch ICF entries for this store
+      let icfRows = [];
+      try {
+        const icfRes = await sheetsGet(deliState.sa, deliState.sheetId, 'Bring In!A1:K500');
+        icfRows = (icfRes.values || []).slice(1).filter(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
+      } catch(_) {}
+
+      // 2. Fetch Transfer entries for this store
+      let tfRows = [];
+      try {
+        const tfRes = await sheetsGet(deliState.sa, deliState.sheetId, 'Merchandise Transfer!A1:Q500');
+        tfRows = (tfRes.values || []).slice(1).filter(r =>
+          (r[0]||'').toString().trim() === String(deliState.storeNum) ||
+          (r[1]||'').toString().trim() === String(deliState.storeNum)
+        );
+      } catch(_) {}
+
+      // 3. Write Week Closure record to sheet
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Week Closures', [
+        'Week Of','Store#','Store Name','Closed By','Closed At','ICF Entries','Transfer Entries','Status'
+      ]);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Week Closures!A1', [[
+        weekOf,
+        deliState.storeNum,
+        deliState.storeName || '',
+        manager.name,
+        closedAt,
+        icfRows.length,
+        tfRows.length,
+        'CLOSED',
+      ]]);
+
+      closeStatusEl.innerHTML = `<span style="color:var(--green)">✓ Week closed by ${manager.name} at ${closedAt}. Email notification sent.</span>`;
+      closeWeekBtn.disabled = true;
+      closeWeekBtn.textContent = '🔒 Week Closed';
+      closePanel.style.display = 'none';
+
+      // Lock all inputs on the daily inv form
+      content.querySelectorAll('.di-input').forEach(i => { i.disabled = true; i.style.background = 'var(--bg)'; });
+      content.querySelector('#di-save-btn').disabled = true;
+
+      // Show recount unlock option
+      const recountDiv = document.createElement('div');
+      recountDiv.style.cssText = 'margin-top:10px';
+      recountDiv.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="di-recount-btn" style="font-size:12px;color:var(--muted)">Request Recount / Unlock</button>
+        <div id="di-recount-panel" style="display:none;margin-top:10px;background:#fff8e1;border-radius:8px;padding:12px;border:1.5px solid var(--amber)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#b45309">Request Recount</div>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 8px">Unlocking requires your PIN and a reason. This will be logged and emailed to the district office.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-row"><label>PIN</label><input type="password" id="di-recount-pin" maxlength="6" placeholder="••••" style="width:90px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:15px;letter-spacing:4px;text-align:center;font-family:inherit"></div>
+            <div class="form-row" style="flex:1;min-width:200px"><label>Reason for Recount</label><input type="text" id="di-recount-reason" placeholder="e.g. Miscounted chicken section" style="width:100%;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <button class="btn btn-sm" id="di-recount-confirm-btn" style="background:var(--amber);color:#fff;border:none">Unlock for Recount</button>
+          </div>
+          <div id="di-recount-status" style="font-size:13px;margin-top:6px"></div>
+        </div>`;
+      closePanel.parentNode.insertBefore(recountDiv, closePanel.nextSibling);
+
+      recountDiv.querySelector('#di-recount-btn').addEventListener('click', () => {
+        const rp = recountDiv.querySelector('#di-recount-panel');
+        rp.style.display = rp.style.display === 'none' ? '' : 'none';
+      });
+
+      recountDiv.querySelector('#di-recount-confirm-btn').addEventListener('click', async () => {
+        const rBtn     = recountDiv.querySelector('#di-recount-confirm-btn');
+        const rStatus  = recountDiv.querySelector('#di-recount-status');
+        const rPin     = recountDiv.querySelector('#di-recount-pin').value.trim();
+        const rReason  = recountDiv.querySelector('#di-recount-reason').value.trim();
+        if (!rPin)    { rStatus.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+        if (!rReason) { rStatus.innerHTML = '<span style="color:var(--red)">A reason is required.</span>'; return; }
+
+        rBtn.disabled = true; rBtn.textContent = 'Verifying…';
+        const mgr = await verifyManagerPinForStore(rPin, deliState.storeNum);
+        if (!mgr) {
+          rStatus.innerHTML = '<span style="color:var(--red)">PIN not recognized.</span>';
+          rBtn.disabled = false; rBtn.textContent = 'Unlock for Recount'; return;
+        }
+
+        try {
+          await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Recount Log', ['Week Of','Store#','Store Name','Unlocked By','Reason','Timestamp']);
+          await sheetsAppend(deliState.sa, deliState.sheetId, 'Recount Log!A1', [[
+            weekOf, deliState.storeNum, deliState.storeName || '',
+            mgr.name, rReason, new Date().toLocaleString(),
+          ]]);
+          // Re-enable inputs
+          content.querySelectorAll('.di-input').forEach(i => { i.disabled = false; i.style.background = 'var(--white)'; });
+          content.querySelector('#di-save-btn').disabled = false;
+          closeWeekBtn.disabled = false; closeWeekBtn.textContent = '🔒 Close Week';
+          rStatus.innerHTML = `<span style="color:var(--green)">✓ Unlocked by ${mgr.name}. Reason logged.</span>`;
+          recountDiv.querySelector('#di-recount-panel').style.display = 'none';
+          recountDiv.querySelector('#di-recount-btn').style.display = 'none';
+        } catch(err) {
+          rStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+          rBtn.disabled = false; rBtn.textContent = 'Unlock for Recount';
+        }
+      });
+
+    } catch(err) {
+      closeStatusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+      closeConfirmBtn.disabled = false; closeConfirmBtn.textContent = 'Confirm Close Week';
+    }
+  });
+
+  // ── Self-Registration (shown if no manager registered for this store) ──
+  (async () => {
+    if (!deliState.sheetId) return;
+    try {
+      const res  = await sheetsGet(deliState.sa, deliState.sheetId, 'Managers!A2:E200');
+      const rows = (res.values || []);
+      const hasManager = rows.some(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
+      if (!hasManager) content.querySelector('#di-register-banner').style.display = 'block';
+    } catch(_) {
+      content.querySelector('#di-register-banner').style.display = 'block';
+    }
+
+    const selfRegBtn = content.querySelector('#self-reg-btn');
+    if (!selfRegBtn) return;
+    selfRegBtn.addEventListener('click', async () => {
+      const name   = content.querySelector('#self-reg-name').value.trim();
+      const email  = content.querySelector('#self-reg-email').value.trim();
+      const pin    = content.querySelector('#self-reg-pin').value.trim();
+      const pin2   = content.querySelector('#self-reg-pin2').value.trim();
+      const role   = content.querySelector('#self-reg-role').value;
+      const status = content.querySelector('#self-reg-status');
+
+      if (!name)           { status.innerHTML = '<span style="color:var(--red)">Name required.</span>'; return; }
+      if (!pin || pin.length < 4) { status.innerHTML = '<span style="color:var(--red)">PIN must be 4–6 digits.</span>'; return; }
+      if (pin !== pin2)    { status.innerHTML = '<span style="color:var(--red)">PINs do not match.</span>'; return; }
+
+      selfRegBtn.disabled = true; selfRegBtn.textContent = 'Registering…';
+      try {
+        await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Managers', ['Name','Store#','PIN','Email','Role']);
+        await sheetsAppend(deliState.sa, deliState.sheetId, 'Managers!A1', [[name, deliState.storeNum, pin, email, role]]);
+        status.innerHTML = `<span style="color:var(--green)">✓ Registered! Your PIN is set. You can now sign forms and close the week.</span>`;
+        content.querySelector('#di-register-banner').style.display = 'none';
+      } catch(err) {
+        status.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+        selfRegBtn.disabled = false; selfRegBtn.textContent = 'Register';
+      }
+    });
+  })();
 }
 
-function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
+// ════════════════════════════════════════
+// MANAGER PIN HELPER
+// ════════════════════════════════════════
+
+async function verifyManagerPin(pin) {
+  if (!deliState.sheetId) return null;
+  try {
+    const res = await sheetsGet(deliState.sa, deliState.sheetId, 'Managers!A2:E200');
+    const rows = (res.values || []);
+    // Columns: Name | Store# | PIN | Email | Role
+    const match = rows.find(r => (r[2] || '').toString().trim() === pin.toString().trim());
+    if (!match) return null;
+    return { name: match[0]||'', store: match[1]||'', pin: match[2]||'', email: match[3]||'', role: match[4]||'' };
+  } catch(e) { return null; }
+}
+
+async function verifyManagerPinForStore(pin, storeNum) {
+  if (!deliState.sheetId) return null;
+  try {
+    const res = await sheetsGet(deliState.sa, deliState.sheetId, 'Managers!A2:E200');
+    const rows = (res.values || []);
+    const match = rows.find(r =>
+      (r[2] || '').toString().trim() === pin.toString().trim() &&
+      (r[1] || '').toString().trim() === storeNum.toString().trim()
+    );
+    if (!match) return null;
+    return { name: match[0]||'', store: match[1]||'', email: match[3]||'', role: match[4]||'' };
+  } catch(e) { return null; }
+}
+
+// ════════════════════════════════════════
+// BRING IN / ICF FORM
+// ════════════════════════════════════════
+
+function renderICFForm(container) {
+  const today = new Date().toISOString().split('T')[0];
+  const storeNum = deliState.storeNum || '';
+
+  const lineRows = Array.from({length: 20}, (_, i) => `
+    <tr>
+      <td style="padding:3px 4px"><input type="number" class="icf-qty" min="0" step="1" style="width:52px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="text" class="icf-desc" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="text" class="icf-dept" style="width:60px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="number" class="icf-ucost" min="0" step="0.01" style="width:80px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><span class="icf-tcost" style="display:inline-block;min-width:80px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
+      <td style="padding:3px 4px"><input type="number" class="icf-uretail" min="0" step="0.01" style="width:80px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><span class="icf-tretail" style="display:inline-block;min-width:80px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <div class="card" style="margin-top:20px">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>Bring In / ICF Form</span>
+        <span style="font-size:12px;color:var(--muted)">Invoice will be entered in the office. Only put on your ICF.</span>
+      </div>
+
+      <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="form-row"><label>Date</label><input type="date" id="icf-date" value="${today}" style="padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit"></div>
+        <div class="form-row"><label>Store #</label><input type="text" id="icf-store" value="${storeNum}" style="width:80px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="icf-table" style="min-width:640px">
+          <thead><tr>
+            <th style="width:60px">Qty</th>
+            <th>Description</th>
+            <th style="width:70px">Dept #</th>
+            <th style="width:90px">Unit Cost</th>
+            <th style="width:90px">Total Cost</th>
+            <th style="width:90px">Unit Retail</th>
+            <th style="width:90px">Total Retail</th>
+          </tr></thead>
+          <tbody>${lineRows}</tbody>
+          <tfoot><tr>
+            <td colspan="4" style="text-align:right;font-weight:700;padding:6px 10px">Totals:</td>
+            <td style="font-weight:700;padding:6px 6px"><span id="icf-total-cost">$0.00</span></td>
+            <td></td>
+            <td style="font-weight:700;padding:6px 6px"><span id="icf-total-retail">$0.00</span></td>
+          </tr></tfoot>
+        </table>
+      </div>
+
+      <!-- Signature -->
+      <div style="margin-top:16px;padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px">Manager Sign-Off</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-row">
+            <label>Your PIN</label>
+            <input type="password" id="icf-pin" maxlength="6" placeholder="••••" style="width:100px;padding:8px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit">
+          </div>
+          <button class="btn btn-primary" id="icf-submit-btn">Submit & Sign</button>
+          <div id="icf-status" style="font-size:13px"></div>
+        </div>
+        <div id="icf-signed-banner" style="display:none;margin-top:10px;padding:10px 14px;background:var(--green);color:#fff;border-radius:8px;font-weight:600;font-size:13px"></div>
+      </div>
+    </div>
+  `;
+
+  // Auto-calc totals on input
+  container.querySelector('#icf-table').addEventListener('input', e => {
+    const row = e.target.closest('tr');
+    if (!row) return;
+    const qty    = parseFloat(row.querySelector('.icf-qty')?.value)    || 0;
+    const ucost  = parseFloat(row.querySelector('.icf-ucost')?.value)  || 0;
+    const uret   = parseFloat(row.querySelector('.icf-uretail')?.value)|| 0;
+    const tc = qty * ucost;
+    const tr = qty * uret;
+    row.querySelector('.icf-tcost').textContent  = tc  ? '$' + tc.toFixed(2)  : '';
+    row.querySelector('.icf-tretail').textContent = tr ? '$' + tr.toFixed(2) : '';
+
+    // Update totals row
+    let totalCost = 0, totalRetail = 0;
+    container.querySelectorAll('#icf-table tbody tr').forEach(r => {
+      totalCost   += parseFloat(r.querySelector('.icf-tcost')?.textContent?.replace('$',''))  || 0;
+      totalRetail += parseFloat(r.querySelector('.icf-tretail')?.textContent?.replace('$',''))|| 0;
+    });
+    container.querySelector('#icf-total-cost').textContent   = '$' + totalCost.toFixed(2);
+    container.querySelector('#icf-total-retail').textContent = '$' + totalRetail.toFixed(2);
+  });
+
+  container.querySelector('#icf-submit-btn').addEventListener('click', async () => {
+    const btn      = container.querySelector('#icf-submit-btn');
+    const statusEl = container.querySelector('#icf-status');
+    const pin      = container.querySelector('#icf-pin').value.trim();
+    if (!pin) { statusEl.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Verifying…'; statusEl.textContent = '';
+
+    const manager = await verifyManagerPinForStore(pin, deliState.storeNum);
+    if (!manager) {
+      statusEl.innerHTML = '<span style="color:var(--red)">PIN not recognized for this store.</span>';
+      btn.disabled = false; btn.textContent = 'Submit & Sign'; return;
+    }
+
+    // Collect rows
+    const date    = container.querySelector('#icf-date').value;
+    const store   = container.querySelector('#icf-store').value;
+    const rows    = [];
+    container.querySelectorAll('#icf-table tbody tr').forEach(r => {
+      const qty  = r.querySelector('.icf-qty')?.value?.trim();
+      const desc = r.querySelector('.icf-desc')?.value?.trim();
+      if (!qty && !desc) return;
+      rows.push([
+        date, store,
+        qty,
+        desc,
+        r.querySelector('.icf-dept')?.value?.trim(),
+        r.querySelector('.icf-ucost')?.value?.trim(),
+        r.querySelector('.icf-tcost')?.textContent?.trim(),
+        r.querySelector('.icf-uretail')?.value?.trim(),
+        r.querySelector('.icf-tretail')?.textContent?.trim(),
+        manager.name,
+        new Date().toLocaleString(),
+      ]);
+    });
+
+    if (rows.length === 0) {
+      statusEl.innerHTML = '<span style="color:var(--red)">Add at least one item.</span>';
+      btn.disabled = false; btn.textContent = 'Submit & Sign'; return;
+    }
+
+    try {
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Bring In', ['Date','Store#','Qty','Description','Dept#','Unit Cost','Total Cost','Unit Retail','Total Retail','Signed By','Timestamp']);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Bring In!A1', rows);
+      const banner = container.querySelector('#icf-signed-banner');
+      banner.textContent = `✓ Signed by ${manager.name} (Store #${manager.store}) — ${new Date().toLocaleString()}`;
+      banner.style.display = 'block';
+      btn.style.display = 'none';
+      container.querySelector('#icf-pin').disabled = true;
+      statusEl.textContent = '';
+    } catch(err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error saving: ${err.message}</span>`;
+      btn.disabled = false; btn.textContent = 'Submit & Sign';
+    }
+  });
+}
+
+// ════════════════════════════════════════
+// MERCHANDISE TRANSFER FORM
+// ════════════════════════════════════════
+
+function renderTransferForm(container) {
+  const today    = new Date().toISOString().split('T')[0];
+  const storeNum = deliState.storeNum || '';
+
+  const lineRows = Array.from({length: 10}, (_, i) => `
+    <tr>
+      <td style="padding:3px 4px"><input type="date" class="tf-date" value="${today}" style="width:120px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:12px;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="text" class="tf-dept" style="width:60px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="number" class="tf-qty" min="0" step="1" style="width:52px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="text" class="tf-desc" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+      <td style="padding:3px 4px"><input type="number" class="tf-cost" min="0" step="0.01" style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><span class="tf-extcost" style="display:inline-block;min-width:72px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
+      <td style="padding:3px 4px"><input type="number" class="tf-sretail" min="0" step="0.01" style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><span class="tf-sextretail" style="display:inline-block;min-width:72px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
+      <td style="padding:3px 4px"><input type="number" class="tf-rretail" min="0" step="0.01" style="width:72px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
+      <td style="padding:3px 4px"><span class="tf-rextretail" style="display:inline-block;min-width:72px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <div class="card" style="margin-top:20px">
+      <div class="card-title">Merchandise Transfer</div>
+
+      <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="form-row"><label>Transferring Store #</label><input type="text" id="tf-from-store" value="${storeNum}" style="width:80px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit"></div>
+        <div class="form-row"><label>Receiving Store #</label><input type="text" id="tf-to-store" placeholder="e.g. 108" style="width:80px;padding:6px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:14px;font-family:inherit"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table" id="tf-table" style="min-width:900px">
+          <thead><tr>
+            <th>Date</th><th>Dept</th><th>Qty</th><th>Item Description</th>
+            <th>Cost</th><th>Ext Cost</th>
+            <th>Transfer Retail</th><th>Transfer Ext Retail</th>
+            <th>Receiving Retail</th><th>Receiving Ext Retail</th>
+          </tr></thead>
+          <tbody>${lineRows}</tbody>
+        </table>
+      </div>
+
+      <!-- Signatures -->
+      <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px" id="tf-sig-grid">
+
+        <!-- Transferring Manager -->
+        <div style="padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Transferring Manager Sign-Off</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-row">
+              <label>PIN</label>
+              <input type="password" id="tf-from-pin" maxlength="6" placeholder="••••" style="width:90px;padding:8px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit">
+            </div>
+            <button class="btn btn-primary btn-sm" id="tf-from-sign-btn">Sign</button>
+          </div>
+          <div id="tf-from-status" style="font-size:13px;margin-top:6px"></div>
+          <div id="tf-from-signed" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green);color:#fff;border-radius:6px;font-size:12px;font-weight:600"></div>
+        </div>
+
+        <!-- Receiving Manager -->
+        <div style="padding:14px;background:var(--bg);border-radius:8px;border:1.5px solid var(--gray)">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Receiving Manager Sign-Off</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Transferring manager must sign first.</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-row">
+              <label>PIN</label>
+              <input type="password" id="tf-to-pin" maxlength="6" placeholder="••••" disabled style="width:90px;padding:8px 10px;border:1.5px solid var(--gray);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit;opacity:.5">
+            </div>
+            <button class="btn btn-primary btn-sm" id="tf-to-sign-btn" disabled style="opacity:.5">Sign</button>
+          </div>
+          <div id="tf-to-status" style="font-size:13px;margin-top:6px"></div>
+          <div id="tf-to-signed" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green);color:#fff;border-radius:6px;font-size:12px;font-weight:600"></div>
+        </div>
+
+      </div>
+
+      <div id="tf-complete-banner" style="display:none;margin-top:14px;padding:14px;background:var(--ks-blue);color:#fff;border-radius:8px;font-weight:700;font-size:14px;text-align:center"></div>
+      <div id="tf-status" style="margin-top:8px;font-size:13px"></div>
+    </div>
+  `;
+
+  // Auto-calc extended costs/retails
+  container.querySelector('#tf-table').addEventListener('input', e => {
+    const row = e.target.closest('tr');
+    if (!row) return;
+    const qty     = parseFloat(row.querySelector('.tf-qty')?.value)     || 0;
+    const cost    = parseFloat(row.querySelector('.tf-cost')?.value)    || 0;
+    const sret    = parseFloat(row.querySelector('.tf-sretail')?.value) || 0;
+    const rret    = parseFloat(row.querySelector('.tf-rretail')?.value) || 0;
+    row.querySelector('.tf-extcost').textContent    = qty && cost ? '$' + (qty*cost).toFixed(2)  : '';
+    row.querySelector('.tf-sextretail').textContent = qty && sret ? '$' + (qty*sret).toFixed(2)  : '';
+    row.querySelector('.tf-rextretail').textContent = qty && rret ? '$' + (qty*rret).toFixed(2)  : '';
+  });
+
+  let fromManagerName = '';
+  let fromManagerEmail = '';
+  let savedRowId = null;
+
+  // ── Transferring manager sign ──
+  container.querySelector('#tf-from-sign-btn').addEventListener('click', async () => {
+    const btn      = container.querySelector('#tf-from-sign-btn');
+    const statusEl = container.querySelector('#tf-from-status');
+    const pin      = container.querySelector('#tf-from-pin').value.trim();
+    const fromStore = container.querySelector('#tf-from-store').value.trim();
+    const toStore   = container.querySelector('#tf-to-store').value.trim();
+    if (!pin)     { statusEl.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+    if (!toStore) { statusEl.innerHTML = '<span style="color:var(--red)">Enter receiving store #.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Verifying…';
+    const manager = await verifyManagerPinForStore(pin, fromStore);
+    if (!manager) {
+      statusEl.innerHTML = '<span style="color:var(--red)">PIN not recognized for store #' + fromStore + '.</span>';
+      btn.disabled = false; btn.textContent = 'Sign'; return;
+    }
+
+    // Collect line items
+    const lines = [];
+    container.querySelectorAll('#tf-table tbody tr').forEach(r => {
+      const qty  = r.querySelector('.tf-qty')?.value?.trim();
+      const desc = r.querySelector('.tf-desc')?.value?.trim();
+      if (!qty && !desc) return;
+      lines.push([
+        r.querySelector('.tf-date')?.value,
+        r.querySelector('.tf-dept')?.value?.trim(),
+        qty, desc,
+        r.querySelector('.tf-cost')?.value?.trim(),
+        r.querySelector('.tf-extcost')?.textContent?.trim(),
+        r.querySelector('.tf-sretail')?.value?.trim(),
+        r.querySelector('.tf-sextretail')?.textContent?.trim(),
+        r.querySelector('.tf-rretail')?.value?.trim(),
+        r.querySelector('.tf-rextretail')?.textContent?.trim(),
+      ]);
+    });
+
+    if (lines.length === 0) {
+      statusEl.innerHTML = '<span style="color:var(--red)">Add at least one item.</span>';
+      btn.disabled = false; btn.textContent = 'Sign'; return;
+    }
+
+    fromManagerName  = manager.name;
+    fromManagerEmail = manager.email;
+    const ts = new Date().toLocaleString();
+
+    // Save to sheet — one row per line item, first row carries the transfer metadata
+    const sheetRows = lines.map((line, i) => [
+      fromStore, toStore,
+      ...line,
+      i === 0 ? manager.name : '', // from_signed_by (first row only)
+      i === 0 ? ts : '',           // from_signed_at
+      '', '',                       // to_signed_by, to_signed_at (pending)
+      'PENDING',                    // status
+    ]);
+
+    try {
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Merchandise Transfer', [
+        'From Store','To Store','Date','Dept','Qty','Description','Cost','Ext Cost',
+        'Transfer Retail','Transfer Ext Retail','Receiving Retail','Receiving Ext Retail',
+        'From Signed By','From Signed At','To Signed By','To Signed At','Status'
+      ]);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Merchandise Transfer!A1', sheetRows);
+
+      container.querySelector('#tf-from-signed').textContent = `✓ ${manager.name} (Store #${fromStore}) — ${ts}`;
+      container.querySelector('#tf-from-signed').style.display = 'block';
+      container.querySelector('#tf-from-pin').disabled = true;
+      btn.style.display = 'none';
+      statusEl.textContent = '';
+
+      // Unlock receiving manager sign-off
+      const toPin = container.querySelector('#tf-to-pin');
+      const toBtn = container.querySelector('#tf-to-sign-btn');
+      toPin.disabled = false; toPin.style.opacity = '1';
+      toBtn.disabled = false; toBtn.style.opacity = '1';
+      container.querySelector('#tf-to-status').innerHTML = '<span style="color:var(--muted)">Transferring manager signed. Receiving manager can now sign.</span>';
+
+      // Lock form fields
+      container.querySelectorAll('#tf-table input').forEach(i => i.disabled = true);
+      container.querySelector('#tf-from-store').disabled = true;
+      container.querySelector('#tf-to-store').disabled   = true;
+    } catch(err) {
+      statusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+      btn.disabled = false; btn.textContent = 'Sign';
+    }
+  });
+
+  // ── Receiving manager sign ──
+  container.querySelector('#tf-to-sign-btn').addEventListener('click', async () => {
+    const btn      = container.querySelector('#tf-to-sign-btn');
+    const statusEl = container.querySelector('#tf-to-status');
+    const pin      = container.querySelector('#tf-to-pin').value.trim();
+    const toStore  = container.querySelector('#tf-to-store').value.trim();
+    if (!pin) { statusEl.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Verifying…';
+    const manager = await verifyManagerPinForStore(pin, toStore);
+    if (!manager) {
+      statusEl.innerHTML = '<span style="color:var(--red)">PIN not recognized for store #' + toStore + '.</span>';
+      btn.disabled = false; btn.textContent = 'Sign'; return;
+    }
+
+    const ts = new Date().toLocaleString();
+    container.querySelector('#tf-to-signed').textContent = `✓ ${manager.name} (Store #${toStore}) — ${ts}`;
+    container.querySelector('#tf-to-signed').style.display = 'block';
+    container.querySelector('#tf-to-pin').disabled = true;
+    btn.style.display = 'none';
+    statusEl.textContent = '';
+
+    // Show completion banner
+    const banner = container.querySelector('#tf-complete-banner');
+    banner.textContent = `✅ Transfer complete — signed by ${fromManagerName} (transferring) & ${manager.name} (receiving). Notification sent.`;
+    banner.style.display = 'block';
+
+    // Write completion back to sheet — append a completion summary row
+    const fromStore = container.querySelector('#tf-from-store').value.trim();
+    try {
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Merchandise Transfer!A1', [[
+        fromStore, toStore,
+        '', '', '', 'TRANSFER COMPLETE', '', '', '', '', '', '',
+        fromManagerName, '', manager.name, ts, 'COMPLETE'
+      ]]);
+    } catch(_) {}
+  });
+}
   const dayLabels = getDayDates(weekOf);
 
   // Build count table HTML (simplified text version of the count sheet)
@@ -2002,7 +2623,14 @@ function renderInvoices(content, rows) {
         </table>
       </div>
     </div>
+
+    <!-- Bring In / ICF and Transfer forms -->
+    <div id="inv-icf-container"></div>
+    <div id="inv-transfer-container"></div>
   `;
+
+  renderICFForm(content.querySelector('#inv-icf-container'));
+  renderTransferForm(content.querySelector('#inv-transfer-container'));
 
   content.querySelector('#save-iv-btn').addEventListener('click', async () => {
     const btn      = content.querySelector('#save-iv-btn');
