@@ -1002,7 +1002,23 @@ function renderDailyInvForm(content, sheetRows) {
         <button class="btn btn-primary" id="di-save-btn">💾 Save All Sections</button>
         <button class="btn btn-ghost" id="di-print-form-btn">🖨 Print Form</button>
         <button class="btn btn-ghost" id="di-pull-week-btn">📥 Pull Week for Store…</button>
+        <button class="btn btn-ghost" id="di-close-week-btn" style="border-color:var(--red);color:var(--red)">🔒 Close Week</button>
         <div id="di-status" style="font-size:13px"></div>
+      </div>
+
+      <!-- Close Week panel -->
+      <div id="di-close-panel" style="display:none;margin-top:12px;background:#fff3f3;border-radius:8px;padding:14px;border:1.5px solid var(--red)">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:var(--red)">🔒 Close Week — ${weekOf}</div>
+        <p style="font-size:13px;margin:0 0 10px">This will lock all counts, ICF entries, and transfers for this week and email a full summary to the district office. This cannot be undone.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-row">
+            <label>Your Manager PIN</label>
+            <input type="password" id="di-close-pin" maxlength="6" placeholder="••••" style="width:100px;padding:8px 10px;border:1.5px solid var(--red);border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;font-family:inherit">
+          </div>
+          <button class="btn btn-sm" id="di-close-confirm-btn" style="background:var(--red);color:#fff;border:none">Confirm Close Week</button>
+          <button class="btn btn-ghost btn-sm" id="di-close-cancel-btn">Cancel</button>
+        </div>
+        <div id="di-close-status" style="font-size:13px;margin-top:8px"></div>
       </div>
 
       <!-- ICF & Transfer forms injected below -->
@@ -1164,6 +1180,83 @@ function renderDailyInvForm(content, sheetRows) {
       pullStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
     } finally {
       pullGoBtn.disabled = false; pullGoBtn.textContent = 'Pull Week';
+    }
+  });
+
+  // ── Close Week ──
+  const closeWeekBtn    = content.querySelector('#di-close-week-btn');
+  const closePanel      = content.querySelector('#di-close-panel');
+  const closeCancelBtn  = content.querySelector('#di-close-cancel-btn');
+  const closeConfirmBtn = content.querySelector('#di-close-confirm-btn');
+  const closeStatusEl   = content.querySelector('#di-close-status');
+
+  closeWeekBtn.addEventListener('click', () => {
+    closePanel.style.display = closePanel.style.display === 'none' ? '' : 'none';
+  });
+  closeCancelBtn.addEventListener('click', () => { closePanel.style.display = 'none'; });
+
+  closeConfirmBtn.addEventListener('click', async () => {
+    const pin = content.querySelector('#di-close-pin').value.trim();
+    if (!pin) { closeStatusEl.innerHTML = '<span style="color:var(--red)">Enter your PIN.</span>'; return; }
+
+    closeConfirmBtn.disabled = true; closeConfirmBtn.textContent = 'Verifying…';
+    const manager = await verifyManagerPinForStore(pin, deliState.storeNum);
+    if (!manager) {
+      closeStatusEl.innerHTML = '<span style="color:var(--red)">PIN not recognized for this store.</span>';
+      closeConfirmBtn.disabled = false; closeConfirmBtn.textContent = 'Confirm Close Week'; return;
+    }
+
+    closeConfirmBtn.textContent = 'Closing week…';
+    closeStatusEl.innerHTML = '<span style="color:var(--muted)">Gathering data…</span>';
+
+    try {
+      const closedAt  = new Date().toLocaleString();
+      const storeLabel = `#${deliState.storeNum}${deliState.storeName ? ' — ' + deliState.storeName : ''}`;
+
+      // 1. Fetch ICF entries for this store
+      let icfRows = [];
+      try {
+        const icfRes = await sheetsGet(deliState.sa, deliState.sheetId, 'Bring In!A1:K500');
+        icfRows = (icfRes.values || []).slice(1).filter(r => (r[1]||'').toString().trim() === String(deliState.storeNum));
+      } catch(_) {}
+
+      // 2. Fetch Transfer entries for this store
+      let tfRows = [];
+      try {
+        const tfRes = await sheetsGet(deliState.sa, deliState.sheetId, 'Merchandise Transfer!A1:Q500');
+        tfRows = (tfRes.values || []).slice(1).filter(r =>
+          (r[0]||'').toString().trim() === String(deliState.storeNum) ||
+          (r[1]||'').toString().trim() === String(deliState.storeNum)
+        );
+      } catch(_) {}
+
+      // 3. Write Week Closure record to sheet
+      await sheetsEnsureHeaders(deliState.sa, deliState.sheetId, 'Week Closures', [
+        'Week Of','Store#','Store Name','Closed By','Closed At','ICF Entries','Transfer Entries','Status'
+      ]);
+      await sheetsAppend(deliState.sa, deliState.sheetId, 'Week Closures!A1', [[
+        weekOf,
+        deliState.storeNum,
+        deliState.storeName || '',
+        manager.name,
+        closedAt,
+        icfRows.length,
+        tfRows.length,
+        'CLOSED',
+      ]]);
+
+      closeStatusEl.innerHTML = `<span style="color:var(--green)">✓ Week closed by ${manager.name} at ${closedAt}. Email notification sent.</span>`;
+      closeWeekBtn.disabled = true;
+      closeWeekBtn.textContent = '🔒 Week Closed';
+      closePanel.style.display = 'none';
+
+      // Lock all inputs on the daily inv form
+      content.querySelectorAll('.di-input').forEach(i => { i.disabled = true; i.style.background = 'var(--bg)'; });
+      content.querySelector('#di-save-btn').disabled = true;
+
+    } catch(err) {
+      closeStatusEl.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+      closeConfirmBtn.disabled = false; closeConfirmBtn.textContent = 'Confirm Close Week';
     }
   });
 }
