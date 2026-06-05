@@ -94,6 +94,11 @@ async function switchDeliTab(container, tabId) {
     return;
   }
 
+  if (tabId === 'inventory') {
+    renderInventoryEmbed(content);
+    return;
+  }
+
   const tabCfg = DELI_TABS[tabId];
   content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p>Loading ${tabCfg.label}…</p></div>`;
 
@@ -1256,6 +1261,34 @@ function pullWeekPrintWindow(storeLbl, weekOf, countRaw, diRows) {
     ${countHTML}
   </body></html>`);
   win.document.close();
+}
+
+function renderInventoryEmbed(content) {
+  const sheetId = deliState.sheetId;
+  if (!sheetId) {
+    content.innerHTML = `<div class="banner banner-warn"><div class="banner-icon">⚠</div><div>No Sheet ID configured for this store.</div></div>`;
+    return;
+  }
+
+  const editUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+  const embedUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?usp=sharing&rm=minimal`;
+
+  content.innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--gray);flex-wrap:wrap;gap:8px">
+        <span style="font-weight:700;font-size:15px">Inventory</span>
+        <a href="${editUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">
+          Open in Google Sheets ↗
+        </a>
+      </div>
+      <iframe
+        src="${embedUrl}"
+        style="width:100%;height:calc(100vh - 180px);min-height:500px;border:none;display:block"
+        allowfullscreen
+        loading="lazy"
+      ></iframe>
+    </div>
+  `;
 }
 
 function renderInventory(content, rows) {
