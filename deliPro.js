@@ -9,6 +9,7 @@ const DELI_TABS = {
   foodcost:  { label: 'Food Cost',  tab: 'Food Cost Calculator', headers: ['Date','Weekly Sales','Beg Inv Deli','Beg Inv Fountain','Beg Inv Branded','Purchases Hunt Brothers','Purchases Icee','Purchases Ben E. Keith','COGS','Food Cost %','Notes'] },
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
+  labels:    { label: 'Labels',      virtual: true },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
@@ -91,6 +92,18 @@ async function switchDeliTab(container, tabId) {
 
   if (tabId === 'training') {
     renderTraining(content);
+    return;
+  }
+
+  if (tabId === 'labels') {
+    content.innerHTML = `
+      <div style="height:calc(100vh - 120px);min-height:500px">
+        <iframe src="labels.html"
+          style="width:100%;height:100%;border:none;display:block;border-radius:var(--radius)"
+          allow="clipboard-write"
+          loading="lazy"
+        ></iframe>
+      </div>`;
     return;
   }
 
