@@ -1277,10 +1277,26 @@ function renderInventoryEmbed(content) {
     <div class="card" style="padding:0;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--gray);flex-wrap:wrap;gap:8px">
         <span style="font-weight:700;font-size:15px">Inventory</span>
-        <a href="${editUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">
-          Open in Google Sheets ↗
-        </a>
+        <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Update BEK Prices</button>
+          <a href="${editUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">Open in Google Sheets ↗</a>
+        </span>
       </div>
+
+      <!-- BEK Upload panel -->
+      <div id="bek-upload-panel" style="display:none;background:var(--bg);padding:14px 16px;border-bottom:1px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Upload BEK Price List (CSV)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          CSV must have columns: <code>item_num</code> and <code>price</code> (or <code>Item Number</code> / <code>Unit Price</code>).
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="bek-file-input" accept=".csv,.txt" style="font-size:13px">
+          <button class="btn btn-primary btn-sm" id="bek-process-btn">Process &amp; Upload</button>
+          <button class="btn btn-ghost btn-sm" id="bek-cancel-btn">Cancel</button>
+        </div>
+        <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
       <iframe
         src="${embedUrl}"
         style="width:100%;height:calc(100vh - 180px);min-height:500px;border:none;display:block"
@@ -1289,6 +1305,82 @@ function renderInventoryEmbed(content) {
       ></iframe>
     </div>
   `;
+
+  // ── BEK Upload panel wiring ──
+  const bekUploadBtn  = content.querySelector('#bek-upload-btn');
+  const bekPanel      = content.querySelector('#bek-upload-panel');
+  const bekCancelBtn  = content.querySelector('#bek-cancel-btn');
+  const bekProcessBtn = content.querySelector('#bek-process-btn');
+  const bekFileInput  = content.querySelector('#bek-file-input');
+  const bekStatus     = content.querySelector('#bek-upload-status');
+
+  bekUploadBtn.addEventListener('click', () => { bekPanel.style.display = bekPanel.style.display === 'none' ? '' : 'none'; });
+  bekCancelBtn.addEventListener('click', () => { bekPanel.style.display = 'none'; });
+
+  bekProcessBtn.addEventListener('click', async () => {
+    const file = bekFileInput.files[0];
+    if (!file) { bekStatus.innerHTML = '<span style="color:var(--red)">Select a CSV file first.</span>'; return; }
+
+    const sbUrl = (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : '';
+    const sbKey = (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : '';
+    if (!sbUrl || !sbKey) {
+      bekStatus.innerHTML = '<span style="color:var(--red)">BEK feed not configured (add SB_URL / SB_KEY).</span>';
+      return;
+    }
+
+    bekProcessBtn.disabled = true; bekProcessBtn.textContent = 'Processing…';
+    bekStatus.innerHTML = '<span style="color:var(--muted)">Reading file…</span>';
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) throw new Error('CSV appears empty.');
+
+      const delim = lines[0].includes('\t') ? '\t' : ',';
+      const rawHeaders = lines[0].split(delim).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+
+      const numCol   = rawHeaders.findIndex(h => /item.?num|item.?#|itemnumber/i.test(h));
+      const priceCol = rawHeaders.findIndex(h => /^price$|unit.?price|each.?price|ext.?price/i.test(h));
+      if (numCol === -1 || priceCol === -1) throw new Error(`Could not find item_num / price columns. Headers found: ${rawHeaders.join(', ')}`);
+
+      const rows = lines.slice(1).map(l => {
+        const cols = l.split(delim).map(c => c.replace(/^"|"$/g, '').trim());
+        const item_num = cols[numCol];
+        const price    = parseFloat(cols[priceCol]);
+        if (!item_num || isNaN(price)) return null;
+        return { item_num, price };
+      }).filter(Boolean);
+
+      if (rows.length === 0) throw new Error('No valid rows found after parsing.');
+      bekStatus.innerHTML = `<span style="color:var(--muted)">Uploading ${rows.length} prices…</span>`;
+
+      const batch = 200;
+      for (let i = 0; i < rows.length; i += batch) {
+        const chunk = rows.slice(i, i + batch);
+        const resp = await fetch(`${sbUrl}/rest/v1/bek_prices`, {
+          method: 'POST',
+          headers: {
+            'apikey': sbKey,
+            'Authorization': `Bearer ${sbKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify(chunk),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(`Supabase error ${resp.status}: ${errText}`);
+        }
+      }
+
+      bekStatus.innerHTML = `<span style="color:var(--green)">✓ ${rows.length} BEK prices uploaded successfully.</span>`;
+      bekFileInput.value = '';
+    } catch (err) {
+      bekStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+    } finally {
+      bekProcessBtn.disabled = false; bekProcessBtn.textContent = 'Process & Upload';
+    }
+  });
 }
 
 function renderInventory(content, rows) {
