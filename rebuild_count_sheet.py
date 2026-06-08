@@ -2,15 +2,11 @@
 Rebuild Updated_185_Count_Sheet_BEK_v2.xlsx
 
 KEY RULES:
-  1. PRICE PER UNIT  = BEK_case_price  /  (first number in pack size)
-  2. PRICE CHANGE comparison is ALWAYS per-unit vs per-unit:
-       • For non-CASE units (BAG/TRAY/JUG/CAN/etc.)  → old price was already per-unit,
-         so:  change = new_per_unit − old_price
-       • For CASE units where old price ≈ case price   → old price was per-case;
-         normalise:  old_per_unit = old_price / n,  change = (case_new − case_old) / n
-       • For CASE units where old_price × n ≈ case_price → old was really per-unit
-         (consistent with the sub-unit style), so:  change = new_per_unit − old_price
+  1. CASE unit  → PRICE PER UNIT = BEK case price (no division; case IS the unit)
+     non-CASE   → PRICE PER UNIT = BEK_case_price / (first number in pack size)
+  2. PRICE CHANGE: compare new per-unit vs old per-unit (normalised)
   3. Eggs special case:  1/30 DZN  = 12 flats of 30 eggs  → per flat = price/12
+  4. Rows with no BEK item number → dark stop-sign red highlight
 """
 
 import re, openpyxl
@@ -22,11 +18,13 @@ SRC = "/root/.claude/uploads/b9ac3eaa-92f5-51b0-89b4-9426ae4e7ffd/db3c619f-Updat
 OUT = "/home/user/Keith-s-Superdeli/Updated_185_Count_Sheet_BEK_v2.xlsx"
 
 # ── STYLES ────────────────────────────────────────────────────────────────────
-YELLOW = PatternFill("solid", fgColor="FFFF00")
-RED_BG = PatternFill("solid", fgColor="FFC7CE")
-GREEN  = PatternFill("solid", fgColor="C6EFCE")
-GRAY   = PatternFill("solid", fgColor="D9D9D9")
-BLUE   = PatternFill("solid", fgColor="4472C4")
+YELLOW   = PatternFill("solid", fgColor="FFFF00")
+RED_BG   = PatternFill("solid", fgColor="FFC7CE")
+GREEN    = PatternFill("solid", fgColor="C6EFCE")
+GRAY     = PatternFill("solid", fgColor="D9D9D9")
+BLUE     = PatternFill("solid", fgColor="4472C4")
+STOP_RED = PatternFill("solid", fgColor="CC0000")   # dark stop-sign red — no BEK #
+white_bold = Font(bold=True, color="FFFFFF")
 
 thin = Side(border_style="thin", color="000000")
 BDR  = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -49,12 +47,17 @@ def first_n(pack_size):
 def calc_per_unit(unit_col, pack_size, case_price):
     """
     Returns (per_unit_price, label).
-    Always = case_price / first_n(pack_size), with special cases for eggs.
+    CASE unit → price IS the case price (no division).
+    Other units → case_price / first_n(pack_size).
     """
     if case_price is None:
         return None, "see label"
     ps  = str(pack_size).strip().upper() if pack_size else ""
-    unt = str(unit_col).strip().title()  if unit_col  else "Case"
+    unt = str(unit_col).strip().upper()  if unit_col  else "CASE"
+
+    # CASE unit: the BEK case price is the per-unit price — no division
+    if unt in ("CASE", ""):
+        return case_price, f"per Case ({pack_size})"
 
     # Eggs: 1/30 DZN = 12 flats per case
     if "DZN" in ps or ("DZ" in ps and re.search(r'/30', ps)):
@@ -64,7 +67,7 @@ def calc_per_unit(unit_col, pack_size, case_price):
     if n <= 0: n = 1.0
 
     per = case_price / n
-    return per, f"per {unt} ({pack_size})"
+    return per, f"per {unt.title()} ({pack_size})"
 
 
 def detect_old_mode(unit_col, pack_size, case_price, old_price):
@@ -109,24 +112,39 @@ def detect_old_mode(unit_col, pack_size, case_price, old_price):
 def price_change(unit_col, pack_size, case_price, old_price):
     """
     Returns (chg_dollar_per_unit, chg_pct) using normalised per-unit comparison.
+    CASE unit: pu_new = case_price, compare directly to old_price (also per case).
+    Other units: pu_new = case_price / n; old normalised via detect_old_mode.
     """
     if case_price is None or old_price is None or old_price == 0:
         return None, None
 
+    unt = str(unit_col).strip().upper() if unit_col else "CASE"
     n   = first_n(pack_size) if pack_size else 1.0
-    pu_new = case_price / n if n > 0 else case_price
-
-    mode = detect_old_mode(unit_col, pack_size, case_price, old_price)
-    if mode == "per_unit":
-        pu_old = old_price
-    else:
-        pu_old = old_price / n if n > 0 else old_price
+    if n <= 0: n = 1.0
 
     # Eggs override
     ps = str(pack_size).strip().upper() if pack_size else ""
     if "DZN" in ps or ("DZ" in ps and re.search(r'/30', ps)):
         pu_new = case_price / 12.0
         pu_old = old_price          # old was already per flat
+        chg = pu_new - pu_old
+        return chg, chg / pu_old
+
+    # CASE unit: pu_new = full case price (no division).
+    # Still use ratio test to normalise old_price to case scale.
+    if unt in ("CASE", ""):
+        pu_new = case_price
+        mode   = detect_old_mode(unit_col, pack_size, case_price, old_price)
+        # "per_unit" means old was per-sub-unit → scale up to case
+        pu_old = old_price * n if mode == "per_unit" and n > 1 else old_price
+        chg = pu_new - pu_old
+        pct = chg / pu_old
+        return chg, pct
+
+    # Non-CASE: pu_new = case_price / n
+    pu_new = case_price / n
+    mode   = detect_old_mode(unit_col, pack_size, case_price, old_price)
+    pu_old = old_price if mode == "per_unit" else old_price / n
 
     chg = pu_new - pu_old
     pct = chg / pu_old
@@ -224,7 +242,13 @@ for src in src_rows:
 
     pu_price, pu_label = calc_per_unit(unit, pack_size, cp)
     chg_d, chg_pct     = price_change(unit, pack_size, cp, op)
-    fill               = fill_color(chg_d, chg_pct)
+
+    # No BEK item number → stop-sign red overrides price-change color
+    no_bek = not bek_num or str(bek_num).strip() == ""
+    if no_bek:
+        fill = STOP_RED
+    else:
+        fill = fill_color(chg_d, chg_pct)
 
     vals = [
         unit, bek_num, bek_name, old_desc, pack_size, par,
@@ -240,7 +264,10 @@ for src in src_rows:
         c = ws.cell(row=dr, column=ci, value=val)
         c.border = BDR
         c.alignment = lft if ci in (3, 4, 12) else ctr
-        if fill: c.fill = fill
+        if fill:
+            c.fill = fill
+            if no_bek:
+                c.font = white_bold
 
         if ci == 7:   c.number_format = '$#,##0.00'
         elif ci == 8: c.number_format = '$#,##0.0000'
@@ -258,15 +285,17 @@ for src in src_rows:
 dr += 1
 ws.cell(row=dr, column=1, value="COLOR LEGEND").font = bold
 legend = [
-    (RED_BG, "RED    — Per-unit price UP  ≥ 10%  or  ≥ $2.00/unit"),
-    (YELLOW, "YELLOW — Per-unit price increased (under threshold)"),
-    (GREEN,  "GREEN  — Per-unit price decreased"),
-    (None,   "WHITE  — No change  /  no BEK match"),
+    (STOP_RED, "DARK RED — No BEK item number matched",          True),
+    (RED_BG,   "PINK/RED — Price UP ≥ 10% or ≥ $2.00/unit",     False),
+    (YELLOW,   "YELLOW   — Price increased (under threshold)",   False),
+    (GREEN,    "GREEN    — Price decreased",                     False),
+    (None,     "WHITE    — No change",                           False),
 ]
-for i, (f, lbl) in enumerate(legend):
+for i, (f, lbl, wht) in enumerate(legend):
     r = dr + 1 + i
     c = ws.cell(row=r, column=1, value=lbl)
     if f: c.fill = f
+    if wht: c.font = white_bold
     c.border = BDR; c.alignment = lft
     for cc in range(2, 5): ws.cell(row=r, column=cc).border = BDR
 
