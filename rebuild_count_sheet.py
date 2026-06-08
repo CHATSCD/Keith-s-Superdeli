@@ -6,24 +6,87 @@ KEY RULES:
      non-CASE   → PRICE PER UNIT = BEK_case_price / (first number in pack size)
   2. PRICE CHANGE: compare new per-unit vs old per-unit (normalised)
   3. Eggs special case:  1/30 DZN  = 12 flats of 30 eggs  → per flat = price/12
-  4. Rows with no BEK item number → dark stop-sign red highlight
+  4. Rows with no BEK item number → dark stop-sign red
+  5. Rows with BEK# not found in current PDF → re-match by name; if still no match → orange-red
 """
 
-import re, openpyxl
+import re, openpyxl, fitz
+from difflib import SequenceMatcher
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+PDF = "/root/.claude/uploads/b9ac3eaa-92f5-51b0-89b4-9426ae4e7ffd/99af206d-Shared_List_2.pdf"
 SRC = "/root/.claude/uploads/b9ac3eaa-92f5-51b0-89b4-9426ae4e7ffd/db3c619f-Updated_185_Count_Sheet_BEK.xlsx"
 OUT = "/home/user/Keith-s-Superdeli/Updated_185_Count_Sheet_BEK_v2.xlsx"
 
+# ── PARSE BEK PDF ──────────────────────────────────────────────────────────────
+def parse_bek_pdf(pdf_path):
+    """Returns dict: item_num -> {name, pack, price}"""
+    items = {}
+    with fitz.open(pdf_path) as pdf:
+        full_text = "\n".join(page.get_text() for page in pdf)
+    lines = [l.strip() for l in full_text.split('\n') if l.strip()]
+    i = 0
+    while i < len(lines):
+        if re.fullmatch(r'\d{5,7}', lines[i]):
+            item_num = lines[i]
+            name_parts, j = [], i + 1
+            while j < len(lines):
+                ln = lines[j]
+                if re.fullmatch(r'\d{5,7}', ln): break
+                if re.match(r'^\d+\s*/\s*\d', ln): break
+                if re.match(r'^\$[\d,]+\.\d{2}', ln): break
+                if ln.startswith('BEK Entrée:') or ln in ('Item','Name','Brand'): break
+                name_parts.append(ln)
+                j += 1
+            price, pack = None, None
+            for k in range(i+1, min(i+12, len(lines))):
+                if re.match(r'^\$[\d,]+\.\d{2}', lines[k]):
+                    try: price = float(lines[k].replace('$','').split()[0].replace(',',''))
+                    except: pass
+                if pack is None and re.match(r'^\d+\s*/\s*\d', lines[k]):
+                    pack = lines[k]
+            name = ' '.join(name_parts[:2]).strip()
+            items[item_num] = {'name': name, 'pack': pack, 'price': price}
+            i = j
+        else:
+            i += 1
+    return items
+
+BEK = parse_bek_pdf(PDF)
+print(f"Loaded {len(BEK)} BEK items from PDF")
+
+def _norm(s):
+    return re.sub(r'[^a-z0-9 ]', '', str(s).lower().strip())
+
+def fix_leading_zeros(bek_str):
+    """If bek_str is all-digits, try zero-padded variants to find PDF match."""
+    if re.fullmatch(r'\d+', bek_str):
+        for width in (5, 6, 7):
+            padded = bek_str.zfill(width)
+            if padded in BEK:
+                return padded
+    return None
+
+def find_best_bek_match(name):
+    """Find best BEK item by name similarity. Returns (item_num, score) or (None, 0)."""
+    n = _norm(name)
+    best_num, best_score = None, 0.0
+    for num, info in BEK.items():
+        score = SequenceMatcher(None, n, _norm(info['name'])).ratio()
+        if score > best_score:
+            best_score, best_num = score, num
+    return (best_num, best_score) if best_score >= 0.72 else (None, 0.0)
+
 # ── STYLES ────────────────────────────────────────────────────────────────────
-YELLOW   = PatternFill("solid", fgColor="FFFF00")
-RED_BG   = PatternFill("solid", fgColor="FFC7CE")
-GREEN    = PatternFill("solid", fgColor="C6EFCE")
-GRAY     = PatternFill("solid", fgColor="D9D9D9")
-BLUE     = PatternFill("solid", fgColor="4472C4")
-STOP_RED = PatternFill("solid", fgColor="FFCC0000")   # dark stop-sign red — no BEK #
+YELLOW    = PatternFill("solid", fgColor="FFFF00")
+RED_BG    = PatternFill("solid", fgColor="FFC7CE")
+GREEN     = PatternFill("solid", fgColor="C6EFCE")
+GRAY      = PatternFill("solid", fgColor="D9D9D9")
+BLUE      = PatternFill("solid", fgColor="4472C4")
+STOP_RED  = PatternFill("solid", fgColor="FFCC0000")   # dark stop-sign red — no BEK #
+MISMATCH  = PatternFill("solid", fgColor="FFFF6600")   # orange-red — wrong/unverified BEK #
 white_bold = Font(bold=True, color="FFFFFF")
 
 thin = Side(border_style="thin", color="000000")
@@ -234,6 +297,30 @@ for src in src_rows:
         dr += 1
         continue
 
+    # ── Re-match BEK item number if missing or not in PDF ────────────────────
+    bek_str    = str(bek_num).strip() if bek_num else ""
+    no_bek     = bek_str == ""
+    in_pdf     = bek_str in BEK
+    rematched  = False
+
+    if not no_bek and not in_pdf:
+        # 1. Try zero-padding fix (e.g. 19275 → 019275)
+        padded = fix_leading_zeros(bek_str)
+        if padded:
+            bek_num   = padded; bek_str = padded
+            case_price = BEK[padded]['price']
+            pack_size  = BEK[padded]['pack'] or pack_size
+            in_pdf = True; rematched = True
+        else:
+            # 2. Try high-confidence name match
+            match_num, score = find_best_bek_match(bek_name or old_desc or "")
+            if match_num:
+                bek_num    = match_num; bek_str = match_num
+                bek_name   = BEK[match_num]['name']
+                case_price = BEK[match_num]['price']
+                pack_size  = BEK[match_num]['pack'] or pack_size
+                in_pdf = True; rematched = True
+
     # ── Numeric cleanup ───────────────────────────────────────────────────────
     try:    cp = float(case_price) if case_price not in (None, "") else None
     except: cp = None
@@ -243,10 +330,11 @@ for src in src_rows:
     pu_price, pu_label = calc_per_unit(unit, pack_size, cp)
     chg_d, chg_pct     = price_change(unit, pack_size, cp, op)
 
-    # No BEK item number → stop-sign red overrides price-change color
-    no_bek = not bek_num or str(bek_num).strip() == ""
+    # Color priority: no BEK# → stop-sign red | not in PDF → orange-red | price change
     if no_bek:
         fill = STOP_RED
+    elif not in_pdf:
+        fill = MISMATCH
     else:
         fill = fill_color(chg_d, chg_pct)
 
@@ -266,7 +354,7 @@ for src in src_rows:
         c.alignment = lft if ci in (3, 4, 12) else ctr
         if fill:
             c.fill = fill
-            if no_bek:
+            if no_bek or (not in_pdf and not rematched):
                 c.font = white_bold
 
         if ci == 7:   c.number_format = '$#,##0.00'
@@ -285,11 +373,12 @@ for src in src_rows:
 dr += 1
 ws.cell(row=dr, column=1, value="COLOR LEGEND").font = bold
 legend = [
-    (STOP_RED, "DARK RED — No BEK item number matched",          True),
-    (RED_BG,   "PINK/RED — Price UP ≥ 10% or ≥ $2.00/unit",     False),
-    (YELLOW,   "YELLOW   — Price increased (under threshold)",   False),
-    (GREEN,    "GREEN    — Price decreased",                     False),
-    (None,     "WHITE    — No change",                           False),
+    (STOP_RED, "DARK RED   — No BEK item number (not in BEK list)",       True),
+    (MISMATCH, "ORANGE-RED — BEK# not found in current price list",        True),
+    (RED_BG,   "PINK       — Price UP ≥ 10% or ≥ $2.00/unit",             False),
+    (YELLOW,   "YELLOW     — Price increased (under threshold)",           False),
+    (GREEN,    "GREEN      — Price decreased",                             False),
+    (None,     "WHITE      — No change / price matched",                   False),
 ]
 for i, (f, lbl, wht) in enumerate(legend):
     r = dr + 1 + i
