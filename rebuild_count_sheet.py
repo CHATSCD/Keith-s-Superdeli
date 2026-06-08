@@ -23,7 +23,7 @@ RED_BG   = PatternFill("solid", fgColor="FFC7CE")
 GREEN    = PatternFill("solid", fgColor="C6EFCE")
 GRAY     = PatternFill("solid", fgColor="D9D9D9")
 BLUE     = PatternFill("solid", fgColor="4472C4")
-STOP_RED = PatternFill("solid", fgColor="CC0000")   # dark stop-sign red — no BEK #
+STOP_RED = PatternFill("solid", fgColor="FFCC0000")   # dark stop-sign red — no BEK #
 white_bold = Font(bold=True, color="FFFFFF")
 
 thin = Side(border_style="thin", color="000000")
