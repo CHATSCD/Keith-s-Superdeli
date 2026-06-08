@@ -60,6 +60,23 @@ print(f"Loaded {len(BEK)} BEK items from PDF")
 def _norm(s):
     return re.sub(r'[^a-z0-9 ]', '', str(s).lower().strip())
 
+def _name_sim(a, b):
+    """Name similarity: max of sequence ratio and sorted-token ratio."""
+    na, nb = _norm(a), _norm(b)
+    seq = SequenceMatcher(None, na, nb).ratio()
+    # sorted-token: handles "Salt Garlic" vs "Garlic Salt"
+    ta = ' '.join(sorted(na.split()))
+    tb = ' '.join(sorted(nb.split()))
+    tok = SequenceMatcher(None, ta, tb).ratio()
+    # word-overlap: fraction of sheet words found in PDF name
+    words_a = set(na.split())
+    words_b = set(nb.split())
+    if words_a:
+        overlap = len(words_a & words_b) / len(words_a)
+    else:
+        overlap = 0.0
+    return max(seq, tok, overlap)
+
 def fix_leading_zeros(bek_str):
     """If bek_str is all-digits, try zero-padded variants to find PDF match."""
     if re.fullmatch(r'\d+', bek_str):
@@ -303,6 +320,8 @@ for src in src_rows:
     in_pdf    = bek_str in BEK
     rematched = False
 
+    name_mismatch = False  # flagged when BEK# found but name/price don't match
+
     if not in_imperial and not no_bek and not in_pdf:
         # 1. Try zero-padding fix (e.g. 19275 → 019275)
         padded = fix_leading_zeros(bek_str)
@@ -321,6 +340,22 @@ for src in src_rows:
                 pack_size  = BEK[match_num]['pack'] or pack_size
                 in_pdf = True; rematched = True
 
+    # ── For confirmed BEK# matches: verify name AND use PDF price ────────────
+    if not in_imperial and in_pdf and bek_str in BEK:
+        pdf_info   = BEK[bek_str]
+        sheet_name = str(bek_name or old_desc or "").strip()
+        pdf_name   = pdf_info['name']
+        name_sim   = _name_sim(sheet_name, pdf_name)
+        if name_sim < 0.45:
+            # Item number is in PDF but points to a completely different product
+            name_mismatch = True
+            in_pdf = False
+        else:
+            # Confirmed match — always use BEK PDF price and pack
+            case_price = pdf_info['price']
+            if pdf_info['pack']:
+                pack_size = pdf_info['pack']
+
     # ── Numeric cleanup ───────────────────────────────────────────────────────
     try:    cp = float(case_price) if case_price not in (None, "") else None
     except: cp = None
@@ -332,13 +367,13 @@ for src in src_rows:
 
     # Color priority:
     #   Imperial items → no red (price-change colors only)
-    #   Before Imperial: no BEK# or BEK# not in PDF → RED
-    #   Before Imperial: valid BEK# → price-change colors
+    #   Before Imperial: no BEK# or BEK# not in PDF or name mismatch → RED
+    #   Before Imperial: valid BEK# with matching name → price-change colors
     if in_imperial:
         fill = fill_color(chg_d, chg_pct)
         needs_red = False
-    elif no_bek or not in_pdf:
-        fill = MISMATCH      # bright red — needs BEK item number
+    elif no_bek or not in_pdf or name_mismatch:
+        fill = MISMATCH      # bright red — needs BEK item number / name verification
         needs_red = True
     else:
         fill = fill_color(chg_d, chg_pct)
