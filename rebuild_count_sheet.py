@@ -85,8 +85,7 @@ RED_BG    = PatternFill("solid", fgColor="FFC7CE")
 GREEN     = PatternFill("solid", fgColor="C6EFCE")
 GRAY      = PatternFill("solid", fgColor="D9D9D9")
 BLUE      = PatternFill("solid", fgColor="4472C4")
-STOP_RED  = PatternFill("solid", fgColor="FFCC0000")   # dark stop-sign red — no BEK #
-MISMATCH  = PatternFill("solid", fgColor="FFFF6600")   # orange-red — wrong/unverified BEK #
+MISMATCH   = PatternFill("solid", fgColor="FFCC0000")   # stop-sign red — no BEK match
 white_bold = Font(bold=True, color="FFFFFF")
 
 thin = Side(border_style="thin", color="000000")
@@ -266,6 +265,7 @@ ws.row_dimensions[1].height = 42
 ws.freeze_panes = "A2"
 
 dr = 2   # data row
+in_imperial = False   # tracks whether we've passed the Imperial divider
 
 for src in src_rows:
     unit       = src[IDX["UNIT"]]
@@ -284,9 +284,9 @@ for src in src_rows:
     if any(str(x) in SKIP for x in [unit, bek_name, bek_num] if x):
         continue
 
-    # ── Imperial section header ───────────────────────────────────────────────
-    if str(bek_num) in ("Imperial", "") and str(unit) in ("Imperial", "") \
-            and (str(bek_name) or "").startswith("─"):
+    # ── Imperial section divider: row where bek_num == 'Imperial' ────────────
+    if str(bek_num).strip() == "Imperial":
+        in_imperial = True
         c = ws.cell(row=dr, column=1,
                     value="─── IMPERIAL / LOCAL VENDORS (prices not in BEK) ───")
         c.font = Font(bold=True, color="FFFFFF")
@@ -298,16 +298,16 @@ for src in src_rows:
         continue
 
     # ── Re-match BEK item number if missing or not in PDF ────────────────────
-    bek_str    = str(bek_num).strip() if bek_num else ""
-    no_bek     = bek_str == ""
-    in_pdf     = bek_str in BEK
-    rematched  = False
+    bek_str   = str(bek_num).strip() if bek_num else ""
+    no_bek    = bek_str == ""
+    in_pdf    = bek_str in BEK
+    rematched = False
 
-    if not no_bek and not in_pdf:
+    if not in_imperial and not no_bek and not in_pdf:
         # 1. Try zero-padding fix (e.g. 19275 → 019275)
         padded = fix_leading_zeros(bek_str)
         if padded:
-            bek_num   = padded; bek_str = padded
+            bek_num    = padded; bek_str = padded
             case_price = BEK[padded]['price']
             pack_size  = BEK[padded]['pack'] or pack_size
             in_pdf = True; rematched = True
@@ -330,13 +330,19 @@ for src in src_rows:
     pu_price, pu_label = calc_per_unit(unit, pack_size, cp)
     chg_d, chg_pct     = price_change(unit, pack_size, cp, op)
 
-    # Color priority: no BEK# → stop-sign red | not in PDF → orange-red | price change
-    if no_bek:
-        fill = STOP_RED
-    elif not in_pdf:
-        fill = MISMATCH
+    # Color priority:
+    #   Imperial items → no red (price-change colors only)
+    #   Before Imperial: no BEK# or BEK# not in PDF → RED
+    #   Before Imperial: valid BEK# → price-change colors
+    if in_imperial:
+        fill = fill_color(chg_d, chg_pct)
+        needs_red = False
+    elif no_bek or not in_pdf:
+        fill = MISMATCH      # bright red — needs BEK item number
+        needs_red = True
     else:
         fill = fill_color(chg_d, chg_pct)
+        needs_red = False
 
     vals = [
         unit, bek_num, bek_name, old_desc, pack_size, par,
@@ -354,7 +360,7 @@ for src in src_rows:
         c.alignment = lft if ci in (3, 4, 12) else ctr
         if fill:
             c.fill = fill
-            if no_bek or (not in_pdf and not rematched):
+            if needs_red:
                 c.font = white_bold
 
         if ci == 7:   c.number_format = '$#,##0.00'
@@ -373,12 +379,11 @@ for src in src_rows:
 dr += 1
 ws.cell(row=dr, column=1, value="COLOR LEGEND").font = bold
 legend = [
-    (STOP_RED, "DARK RED   — No BEK item number (not in BEK list)",       True),
-    (MISMATCH, "ORANGE-RED — BEK# not found in current price list",        True),
-    (RED_BG,   "PINK       — Price UP ≥ 10% or ≥ $2.00/unit",             False),
-    (YELLOW,   "YELLOW     — Price increased (under threshold)",           False),
-    (GREEN,    "GREEN      — Price decreased",                             False),
-    (None,     "WHITE      — No change / price matched",                   False),
+    (MISMATCH, "RED    — No matching BEK item number (needs manual lookup)", True),
+    (RED_BG,   "PINK   — Price UP ≥ 10% or ≥ $2.00/unit",                  False),
+    (YELLOW,   "YELLOW — Price increased (under threshold)",                False),
+    (GREEN,    "GREEN  — Price decreased",                                  False),
+    (None,     "WHITE  — No change / BEK match confirmed",                  False),
 ]
 for i, (f, lbl, wht) in enumerate(legend):
     r = dr + 1 + i
