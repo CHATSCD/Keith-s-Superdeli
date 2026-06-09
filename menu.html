@@ -121,16 +121,23 @@ const CW_DELI = {
               'Hushpuppies','Wedges','Roll','Cornbread'],
 };
 
-const BFAST_ITEMS = ['Biscuits','Gravy','Scrambled Eggs','Bacon','Sausage Patties',
-                     'Sausage Links','Hash Browns','Breakfast Burritos'];
+// Main breakfast grill/oven items (Cook/Waste Sheet photo 2)
+const BFAST_MAIN = [
+  'Biscuits','Bacon Pans','Patty Sausage','Split Link','Steak for Biscuit',
+  'Pork Chop','Chicken Patty','Ham','Bologna',
+  'Fried Eggs','Scrambled Eggs',
+  'Grits','Cheese Grits','White Gravy','Tomato Gravy','Pancakes',
+];
+// Hot case / breakfast grab-and-go items (Cook/Waste Sheet photo 1)
+const BFAST_HOTCASE = [
+  'Hashbrown Rings','Hashbrown Cass.','Kolache','Kolache with Cheese',
+  'Stuffed Waffle','Waffles 4pc',
+  'P. Boudin','S. Boudin','C. Boudin',
+  'BLT','Breakfast Burrito','Jalapeno Sausage',
+];
 const CW_BFAST = {
-  SUNDAY:    BFAST_ITEMS,
-  MONDAY:    BFAST_ITEMS,
-  TUESDAY:   BFAST_ITEMS,
-  WEDNESDAY: BFAST_ITEMS,
-  THURSDAY:  BFAST_ITEMS,
-  FRIDAY:    BFAST_ITEMS,
-  SATURDAY:  BFAST_ITEMS,
+  SUNDAY: true, MONDAY: true, TUESDAY: true, WEDNESDAY: true,
+  THURSDAY: true, FRIDAY: true, SATURDAY: true,
 };
 
 const CW_GG = [
@@ -324,44 +331,56 @@ function CWDeliTab({ store, isoWeek, parData, logData, updatePar, updateLog }) {
 }
 
 // ── CW BREAKFAST TAB ──────────────────────────────────────────────────────────
+function BfastItemRows({ items, section, day, parData, logData, updatePar, updateLog }) {
+  return items.map((item, idx) => {
+    const key    = section + '|' + item;
+    const parVal = (parData.bfast || {})[day]?.[key] || '';
+    const cooked = (logData.bfast || {})[day]?.[key]?.cooked || '';
+    const wasted = (logData.bfast || {})[day]?.[key]?.wasted || '';
+    const total  = (logData.bfast || {})[day]?.[key]?.total  || '';
+    return (
+      <div key={key} className={'form-trow bf' + (idx % 2 === 1 ? ' alt' : '')}>
+        <span className="ft-item">{item}</span>
+        <input type="number" min="0" className="fi" value={parVal} placeholder="—"
+          onChange={e => updatePar(['bfast', day, key], e.target.value)} />
+        <input type="text" className="fi" value={cooked} placeholder="—"
+          onChange={e => updateLog(['bfast', day, key, 'cooked'], e.target.value)} />
+        <input type="number" min="0" className="fi" value={wasted} placeholder="—"
+          onChange={e => updateLog(['bfast', day, key, 'wasted'], e.target.value)} />
+        <input type="text" className="fi" value={total} placeholder="—"
+          onChange={e => updateLog(['bfast', day, key, 'total'], e.target.value)} />
+      </div>
+    );
+  });
+}
+
 function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog }) {
   const today = todayDayName();
   const defDay = BFAST_DAYS.includes(today) ? today : 'SUNDAY';
   const [day, setDay] = useState(defDay);
-  const items = CW_BFAST[day] || [];
   const color = DAY_COLOR[day];
+
+  const bfProps = { day, parData, logData, updatePar, updateLog };
 
   return (
     <div>
       <DayPicker days={BFAST_DAYS} selected={day} onChange={setDay} />
       <div className="sheet-card">
         <div className="sheet-title" style={{ background: color }}>
-          <span className="sheet-title-main">🥞 {DAY_SHORT[day]} — Breakfast</span>
+          <span className="sheet-title-main">🥞 {DAY_SHORT[day]} — Breakfast Cook/Waste</span>
           <span className="sheet-date-line">Date: <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></span>
         </div>
         <div className="form-table">
-          <div className="form-thead">
-            <span className="ft-item">Item</span>
+          <div className="form-thead bf">
+            <span className="ft-item">Product</span>
             <span className="ft-num">Par</span>
             <span className="ft-num">Cooked</span>
             <span className="ft-num">Waste</span>
+            <span className="ft-num">Total Waste</span>
           </div>
-          {items.map((item, idx) => {
-            const parVal = (parData.bfast || {})[day]?.[item] || '';
-            const cooked = (logData.bfast || {})[day]?.[item]?.cooked || '';
-            const wasted = (logData.bfast || {})[day]?.[item]?.wasted || '';
-            return (
-              <div key={item} className={'form-trow' + (idx % 2 === 1 ? ' alt' : '')}>
-                <span className="ft-item">{item}</span>
-                <input type="number" min="0" className="fi" value={parVal} placeholder="—"
-                  onChange={e => updatePar(['bfast', day, item], e.target.value)} />
-                <input type="number" min="0" className="fi" value={cooked} placeholder="—"
-                  onChange={e => updateLog(['bfast', day, item, 'cooked'], e.target.value)} />
-                <input type="number" min="0" className="fi" value={wasted} placeholder="—"
-                  onChange={e => updateLog(['bfast', day, item, 'wasted'], e.target.value)} />
-              </div>
-            );
-          })}
+          <BfastItemRows {...bfProps} items={BFAST_MAIN}    section="main" />
+          <div className="sec-divider" style={{ borderColor: color, color }}>☕ Hot Case / Grab &amp; Go</div>
+          <BfastItemRows {...bfProps} items={BFAST_HOTCASE} section="hc" />
         </div>
       </div>
     </div>
@@ -460,12 +479,20 @@ function WeeklyMenuApp() {
   const store     = params.get('store') || 'demo';
   const storeName = params.get('name')  || "Keith's Superdeli";
 
-  const [activeTab, setActiveTab] = useState('menu');
-  const [isoWeek,   setIsoWeek]   = useState(() => getISOWeek(new Date()));
-  const [parData,   setParData]   = useState(() => loadPar(store));
-  const [logData,   setLogData]   = useState(() => loadLog(store, getISOWeek(new Date())));
+  const [activeTab,  setActiveTab]  = useState('menu');
+  const [isoWeek,    setIsoWeek]    = useState(() => getISOWeek(new Date()));
+  const [parData,    setParData]    = useState(() => loadPar(store));
+  const [logData,    setLogData]    = useState(() => loadLog(store, getISOWeek(new Date())));
+  const [saveStatus, setSaveStatus] = useState('');
+  const saveTimer = React.useRef(null);
 
   useEffect(() => { setLogData(loadLog(store, isoWeek)); }, [isoWeek]);
+
+  const flashSaved = () => {
+    setSaveStatus('✓ Saved');
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => setSaveStatus(''), 2000);
+  };
 
   const updateLog = useCallback((path, value) => {
     setLogData(prev => {
@@ -473,6 +500,7 @@ function WeeklyMenuApp() {
       saveLog(store, isoWeek, next);
       return next;
     });
+    flashSaved();
   }, [store, isoWeek]);
 
   const updatePar = useCallback((path, value) => {
@@ -481,6 +509,7 @@ function WeeklyMenuApp() {
       savePar(store, next);
       return next;
     });
+    flashSaved();
   }, [store]);
 
   const printBlank = () => {
@@ -513,6 +542,7 @@ function WeeklyMenuApp() {
             <span className="wk-label">{weekLabel(isoWeek)}</span>
             <button className="wk-btn" onClick={() => setIsoWeek(w => addWeeks(w, 1))}>›</button>
           </div>
+          {saveStatus && <span className="save-badge">{saveStatus}</span>}
           <button className="btn-blank"  onClick={printBlank}>🖨 Blank</button>
           <button className="btn-filled" onClick={() => window.print()}>🖨 Filled</button>
         </div>
@@ -642,24 +672,41 @@ const CSS = `
   .sheet-title-main { color: #fff; font-size: 14px; font-weight: 800; }
   .sheet-date-line  { color: rgba(255,255,255,.75); font-size: 12px; }
 
+  /* SAVE BADGE */
+  .save-badge {
+    background: #1E8C45; color: #fff; font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 12px; animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
   /* FORM TABLE */
   .form-table { width: 100%; }
   .form-thead {
-    display: grid; grid-template-columns: 1fr 56px 72px 68px;
+    display: grid; grid-template-columns: 1fr 50px 72px 62px;
     padding: 6px 12px; background: #f7f8fa;
     border-bottom: 2px solid #e4e6ec;
     font-size: 10px; font-weight: 800; text-transform: uppercase;
     color: #666; letter-spacing: .4px; gap: 6px;
   }
+  /* 5-column variant for Breakfast */
+  .form-thead.bf { grid-template-columns: 1fr 50px 72px 62px 80px; }
   .form-trow {
-    display: grid; grid-template-columns: 1fr 56px 72px 68px;
+    display: grid; grid-template-columns: 1fr 50px 72px 62px;
     padding: 5px 12px; align-items: center; gap: 6px;
     border-bottom: 1px solid #f0f2f5;
   }
+  .form-trow.bf { grid-template-columns: 1fr 50px 72px 62px 80px; }
   .form-trow.alt  { background: #f8f9fb; }
   .form-trow.cond .ft-item { font-style: italic; color: #999; }
   .ft-item { font-size: 13px; color: #1a1a1a; }
-  .ft-num  { font-size: 11px; text-align: center; color: #666; }
+  .ft-num  { font-size: 10px; text-align: center; color: #666; }
+
+  /* Section divider inside form table */
+  .sec-divider {
+    padding: 6px 12px; font-size: 11px; font-weight: 800;
+    border-top: 2px solid; letter-spacing: .3px; background: #fafbfc;
+    text-transform: uppercase;
+  }
 
   /* INPUTS */
   .fi {
@@ -711,8 +758,11 @@ const CSS = `
     .sheet-title { padding: 7px 10px; }
     .sheet-title-main { font-size: 12px; }
     .form-thead { font-size: 9px; padding: 4px 10px; }
+    .form-thead.bf { grid-template-columns: 1fr 44px 64px 54px 70px; }
     .form-trow  { padding: 3px 10px; }
-    .ft-item    { font-size: 11px; }
+    .form-trow.bf { grid-template-columns: 1fr 44px 64px 54px 70px; }
+    .ft-item    { font-size: 10px; }
+    .sec-divider { font-size: 9px; padding: 4px 10px; }
 
     .fi {
       border: none; border-bottom: 1px solid #999; border-radius: 0;
