@@ -60,21 +60,20 @@ const MENU_ITEMS = {
 const PULL_ITEMS = {
   SUNDAY:    ['Meat Loaf','Pork Chops','Collards','Green Beans',
               'Mac & Cheese','Mashed Potatoes',
-              'Brisket (if needed)','Burnt End Dogs (if needed)','Pulled Pork (if needed)'],
-  MONDAY:    ['Beef Meat','Beef Tamale & Cabbage','Chicken Tamale','Pork Chops',
-              'Mexican Corn Dip','Broccoli Rice Cheese Casserole','Queso Dip',
-              'Squash','Sweet Fire Corn','Corn with Black Beans',
+              'Brisket (if needed)','Burnt End Sausage Dogs (if needed)','Pulled Pork (if needed)'],
+  MONDAY:    ['Roll or Cornbread','Cabbage','Pork Chops',
+              'Broccoli Rice & Cheese Casserole','Squash',
               'Green Beans','Mac & Cheese','Mashed Potatoes',
-              'Brisket (if needed)','Burnt End Dogs (if needed)','Pulled Pork (if needed)'],
+              'Brisket (if needed)','Burnt End Sausage Dogs (if needed)','Pulled Pork (if needed)'],
   TUESDAY:   ['Broccoli & Cheese Rice Casserole','Green Beans','Ground Meat',
               'Mac & Cheese','Mashed Potatoes','Field Peas','Baked Potato Casserole',
-              'Brisket (if needed)','Burnt End Dogs (if needed)','Pulled Pork (if needed)','Bolos (if needed)'],
+              'Brisket (if needed)','Burnt End Sausage Dogs (if needed)','Pulled Pork (if needed)','Bolos (if needed)'],
   WEDNESDAY: ['BBQ Ribs','Bone-In Chicken','Corn','Cabbage',
               'Mac & Cheese','Mashed Potatoes','Green Beans','Okra','Baked Beans',
-              'Brisket (if needed)','Burnt End Dogs (if needed)','Pulled Pork (if needed)'],
+              'Brisket (if needed)','Burnt End Sausage Dogs (if needed)','Pulled Pork (if needed)'],
   THURSDAY:  ['Broccoli & Cheese Rice Casserole','Collards','Corn','Fish',
               'Green Beans','Mac & Cheese','Mashed Potatoes','Shrimp',
-              'Brisket (if needed)','Burnt End Dogs (if needed)','Pulled Pork (if needed)'],
+              'Brisket (if needed)','Burnt End Sausage Dogs (if needed)','Pulled Pork (if needed)'],
   FRIDAY:    []
 };
 
@@ -312,32 +311,36 @@ function WeeklyMenuApp() {
 
         {/* PULL SHEET */}
         <div className={'tab-panel' + (activeTab === 'pull' ? ' active' : '')} data-section="Pull Sheet">
-          <div className="section-print-header print-only">📦 Pull Sheet (pull tonight for tomorrow)</div>
+          <div className="section-print-header print-only">📦 Pull Sheet</div>
           <div className="day-grid">
             {DAYS.map((day, i) => {
               const items = PULL_ITEMS[day] || [];
               const color = DAY_COLORS[i];
-              const pullLabel = day === 'FRIDAY' ? 'No Pull' : 'Pull for ' + (DAYS[i + 1] || '');
+              const nextDay = DAYS[i + 1] || '';
+              const pullTitle = day === 'FRIDAY' ? 'No Pull' : 'Pull for ' + nextDay.charAt(0) + nextDay.slice(1).toLowerCase();
               return (
                 <div key={day} className="day-col">
                   <div className="day-header" style={{ background: color }}>
-                    {DAY_SHORT[i]}<br/><span className="day-full">{pullLabel}</span>
+                    <div className="pull-sheet-title">{DAY_SHORT[i]} — {pullTitle}</div>
+                    <div className="pull-date-row">Date: <span className="pull-date-line"/></div>
                   </div>
                   {day === 'FRIDAY' ? (
                     <div className="empty-day">No pull on Friday night</div>
                   ) : (
                     <div className="day-items">
-                      <div className="form-col-headers">
+                      <div className="form-col-headers pull-headers">
                         <span className="col-item">Item</span>
                         <span className="col-num">Par</span>
-                        <span className="col-num">Pulled</span>
+                        <span className="col-num">How Many Pulled</span>
+                        <span className="col-num">Initials</span>
                       </div>
                       {items.map(item => {
-                        const isCond = item.includes('(if needed)');
-                        const parVal  = (parData.pull  || {})[day]?.[item] || '';
-                        const pullVal = (logData.pull  || {})[day]?.[item] || '';
+                        const isCond  = item.includes('(if needed)');
+                        const parVal  = (parData.pull || {})[day]?.[item] || '';
+                        const pullVal = (logData.pull || {})[day]?.[item]?.pulled || '';
+                        const initVal = (logData.pull || {})[day]?.[item]?.initials || '';
                         return (
-                          <div key={item} className={'form-row' + (isCond ? ' cond-row' : '')}>
+                          <div key={item} className={'form-row pull-row' + (isCond ? ' cond-row' : '')}>
                             <span className="col-item">{item}</span>
                             <input
                               type="number" min="0" className="num-input"
@@ -348,7 +351,13 @@ function WeeklyMenuApp() {
                             <input
                               type="number" min="0" className="num-input"
                               value={pullVal}
-                              onChange={e => updateLog(['pull', day, item], e.target.value)}
+                              onChange={e => updateLog(['pull', day, item, 'pulled'], e.target.value)}
+                              placeholder="—"
+                            />
+                            <input
+                              type="text" maxLength="4" className="init-input"
+                              value={initVal}
+                              onChange={e => updateLog(['pull', day, item, 'initials'], e.target.value)}
                               placeholder="—"
                             />
                           </div>
@@ -589,22 +598,32 @@ const CSS = `
 
   .empty-day { text-align: center; padding: 20px 8px; font-size: 11px; color: #aaa; font-style: italic; }
 
+  /* ── Pull sheet day header ── */
+  .pull-sheet-title { font-size: 11px; font-weight: 800; color: #fff; line-height: 1.3; }
+  .pull-date-row {
+    font-size: 10px; color: rgba(255,255,255,.75); margin-top: 3px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .pull-date-line {
+    display: inline-block; width: 60px; border-bottom: 1px solid rgba(255,255,255,.6);
+  }
+
   /* ── Form rows ── */
   .form-col-headers {
-    display: grid; grid-template-columns: 1fr 36px 36px; gap: 2px;
+    display: grid; grid-template-columns: 1fr 30px 36px 36px; gap: 2px;
     padding: 4px 2px; border-bottom: 1.5px solid #e8eaf0; margin-bottom: 2px;
-    font-size: 9px; font-weight: 800; text-transform: uppercase; color: #888; letter-spacing: .4px;
+    font-size: 8px; font-weight: 800; text-transform: uppercase; color: #888; letter-spacing: .4px;
   }
   .form-col-headers.cw { grid-template-columns: 1fr 30px 36px 36px; }
   .form-row {
-    display: grid; grid-template-columns: 1fr 36px 36px; gap: 2px;
+    display: grid; grid-template-columns: 1fr 30px 36px 36px; gap: 2px;
     align-items: center; padding: 2px 2px; border-radius: 3px;
   }
   .form-row.cw { grid-template-columns: 1fr 30px 36px 36px; }
   .form-row:nth-child(even) { background: #f8f9fb; }
   .cond-row .col-item { font-style: italic; color: #999; font-size: 10px; }
   .col-item { font-size: 10.5px; color: #1a1a1a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-num  { font-size: 10px; text-align: center; color: #666; }
+  .col-num  { font-size: 9px; text-align: center; color: #666; }
   .num-input {
     width: 100%; text-align: center; font-size: 12px; font-weight: 700;
     border: 1px solid #dde1e8; border-radius: 4px; padding: 2px 1px;
@@ -614,6 +633,13 @@ const CSS = `
   .num-input:focus { outline: none; border-color: #1565C0; background: #f0f4ff; }
   .num-input::-webkit-outer-spin-button,
   .num-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .init-input {
+    width: 100%; text-align: center; font-size: 12px; font-weight: 600;
+    border: 1px solid #dde1e8; border-radius: 4px; padding: 2px 1px;
+    color: #555; background: #fff; text-transform: uppercase;
+    transition: border-color .15s;
+  }
+  .init-input:focus { outline: none; border-color: #1565C0; background: #f0f4ff; }
 
   /* ── Grab & Go ── */
   .gg-wrap { max-width: 560px; margin: 0 auto; }
@@ -655,11 +681,16 @@ const CSS = `
     .form-row { padding: 1px 2px; }
     .col-item { font-size: 9px; }
 
-    .num-input {
+    .num-input, .init-input {
       border: none; border-bottom: 1px solid #aaa; border-radius: 0;
       background: transparent; color: #000; font-size: 10px;
     }
-    body.print-blank .num-input { color: transparent !important; }
+    body.print-blank .num-input  { color: transparent !important; }
+    body.print-blank .init-input { color: transparent !important; }
+
+    .pull-sheet-title { font-size: 10px; }
+    .pull-date-row { font-size: 9px; margin-top: 2px; }
+    .pull-date-line { width: 50px; border-bottom: 1px solid rgba(255,255,255,.8); }
 
     .gg-table { box-shadow: none; border: 1px solid #ddd; }
     .gg-header { padding: 6px 8px; }
