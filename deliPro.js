@@ -10,6 +10,7 @@ const DELI_TABS = {
   invoices:  { label: 'Invoices',   tab: 'Invoices',            headers: ['Date','Vendor','Invoice #','Amount ($)','Items','Notes'] },
   suppliers: { label: 'Suppliers',  tab: 'Suppliers',           headers: ['Supplier','Rep Name','Phone','Email','Delivery Day','Notes'] },
   labels:    { label: 'Labels',      virtual: true },
+  menu:      { label: 'Menu',        virtual: true },
   analytics: { label: 'Analytics',  virtual: true },
   training:  { label: 'Training',   virtual: true },
 };
@@ -101,6 +102,19 @@ async function switchDeliTab(container, tabId) {
         <iframe src="labels.html"
           style="width:100%;height:100%;border:none;display:block;border-radius:var(--radius)"
           allow="clipboard-write"
+          loading="lazy"
+        ></iframe>
+      </div>`;
+    return;
+  }
+
+  if (tabId === 'menu') {
+    const url = 'menu.html?store=' + encodeURIComponent(deliState.storeNum || '')
+              + '&name=' + encodeURIComponent(deliState.storeName || '');
+    content.innerHTML = `
+      <div style="height:calc(100vh - 120px);min-height:500px">
+        <iframe src="${url}"
+          style="width:100%;height:100%;border:none;display:block;border-radius:var(--radius)"
           loading="lazy"
         ></iframe>
       </div>`;
