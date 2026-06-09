@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="serviceAccount.js"></script>
 </head>
 <body style="margin:0;padding:0;background:#f0f2f5">
 <div id="root"></div>
@@ -187,23 +188,60 @@ function todayDayName() {
   return ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][new Date().getDay()];
 }
 
+// ── SUPABASE HELPERS ──────────────────────────────────────────────────────────
+function _sbUrl() { return (typeof SB_URL !== 'undefined' && SB_URL) ? SB_URL : ''; }
+function _sbKey() { return (typeof SB_KEY !== 'undefined' && SB_KEY) ? SB_KEY : ''; }
+
+async function sbGet(storeId, dataKey) {
+  const url = _sbUrl(), key = _sbKey();
+  if (!url || !key) return null;
+  try {
+    const r = await fetch(
+      `${url}/rest/v1/menu_store_data?store_id=eq.${encodeURIComponent(storeId)}&data_key=eq.${encodeURIComponent(dataKey)}&select=data_value&limit=1`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    );
+    const rows = await r.json();
+    return (rows && rows[0]) ? rows[0].data_value : null;
+  } catch { return null; }
+}
+
+async function sbSet(storeId, dataKey, value) {
+  const url = _sbUrl(), key = _sbKey();
+  if (!url || !key) return;
+  try {
+    await fetch(`${url}/rest/v1/menu_store_data`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ store_id: String(storeId), data_key: dataKey, data_value: value }),
+    });
+  } catch { /* silent — localStorage write-through still preserved the data */ }
+}
+
 // ── STORAGE HELPERS ───────────────────────────────────────────────────────────
 function parKey(store)          { return 'ks_par_' + store; }
 function logKey(store, isoWeek) { return 'ks_log_' + store + '_' + isoWeek; }
 
-function loadPar(store) {
+async function loadPar(store) {
+  const r = await sbGet(store, 'par');
+  if (r) return r;
   try { return JSON.parse(localStorage.getItem(parKey(store)) || 'null') || {}; }
   catch { return {}; }
 }
-function savePar(store, data) { localStorage.setItem(parKey(store), JSON.stringify(data)); }
+function savePar(store, data) {
+  localStorage.setItem(parKey(store), JSON.stringify(data));
+  sbSet(store, 'par', data);
+}
 
-function loadLog(store, isoWeek) {
+async function loadLog(store, isoWeek) {
+  const r = await sbGet(store, 'log_' + isoWeek);
+  if (r) return r;
   try { return JSON.parse(localStorage.getItem(logKey(store, isoWeek)) || 'null') || {}; }
   catch { return {}; }
 }
 function saveLog(store, isoWeek, data) {
   localStorage.setItem(logKey(store, isoWeek), JSON.stringify(data));
-  // prune entries older than 2 weeks
+  sbSet(store, 'log_' + isoWeek, data);
+  // prune local entries older than 2 weeks
   const cutoff = addWeeks(isoWeek, -2);
   Object.keys(localStorage).forEach(k => {
     if (!k.startsWith('ks_log_' + store + '_')) return;
@@ -218,18 +256,27 @@ function deepSet(obj, path, value) {
   return { ...obj, [head]: deepSet(obj[head] || {}, rest, value) };
 }
 
-function itemsKey(store) { return 'ks_items_' + store; }
-function brandKey(store) { return 'ks_brand_' + store; }
-function loadCustomItems(store) {
-  try { return JSON.parse(localStorage.getItem(itemsKey(store)) || 'null') || {}; }
+async function loadCustomItems(store) {
+  const r = await sbGet(store, 'items');
+  if (r) return r;
+  try { return JSON.parse(localStorage.getItem('ks_items_' + store) || 'null') || {}; }
   catch { return {}; }
 }
-function saveCustomItems(store, ci) { localStorage.setItem(itemsKey(store), JSON.stringify(ci)); }
-function loadBrand(store) {
-  try { return JSON.parse(localStorage.getItem(brandKey(store)) || 'null') || {}; }
+function saveCustomItems(store, ci) {
+  localStorage.setItem('ks_items_' + store, JSON.stringify(ci));
+  sbSet(store, 'items', ci);
+}
+
+async function loadBrand(store) {
+  const r = await sbGet(store, 'brand');
+  if (r) return r;
+  try { return JSON.parse(localStorage.getItem('ks_brand_' + store) || 'null') || {}; }
   catch { return {}; }
 }
-function saveBrand(store, b) { localStorage.setItem(brandKey(store), JSON.stringify(b)); }
+function saveBrand(store, b) {
+  localStorage.setItem('ks_brand_' + store, JSON.stringify(b));
+  sbSet(store, 'brand', b);
+}
 
 // ── EDITABLE LIST ─────────────────────────────────────────────────────────────
 function EditableList({ items, onChange }) {
@@ -694,15 +741,26 @@ function WeeklyMenuApp() {
 
   const [activeTab,    setActiveTab]    = useState('menu');
   const [isoWeek,      setIsoWeek]      = useState(() => getISOWeek(new Date()));
-  const [parData,      setParData]      = useState(() => loadPar(store));
-  const [logData,      setLogData]      = useState(() => loadLog(store, getISOWeek(new Date())));
+  const [parData,      setParData]      = useState({});
+  const [logData,      setLogData]      = useState({});
   const [saveStatus,   setSaveStatus]   = useState('');
-  const [customItems,  setCustomItems]  = useState(() => loadCustomItems(store));
-  const [brand,        setBrand]        = useState(() => loadBrand(store));
+  const [customItems,  setCustomItems]  = useState({});
+  const [brand,        setBrand]        = useState({});
   const [showBrand,    setShowBrand]    = useState(false);
   const saveTimer = React.useRef(null);
 
-  useEffect(() => { setLogData(loadLog(store, isoWeek)); }, [isoWeek]);
+  // Load all store data asynchronously on mount
+  useEffect(() => {
+    loadPar(store).then(d => setParData(d));
+    loadCustomItems(store).then(d => setCustomItems(d));
+    loadBrand(store).then(d => setBrand(d));
+    loadLog(store, isoWeek).then(d => setLogData(d));
+  }, [store]);
+
+  // Reload log when week changes
+  useEffect(() => {
+    loadLog(store, isoWeek).then(d => setLogData(d));
+  }, [isoWeek]);
 
   // Apply brand colors by injecting a style override
   useEffect(() => {
