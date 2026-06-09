@@ -437,7 +437,7 @@ function BfastItemRows({ items, section, day, parData, logData, updatePar, updat
   });
 }
 
-function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog, bfastMain, bfastHotcase, onBfastMain, onBfastHotcase }) {
+function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog, bfastMain, bfastHotcase, onBfastMain, onBfastHotcase, copyParToAllDays }) {
   const today = todayDayName();
   const defDay = BFAST_DAYS.includes(today) ? today : 'SUNDAY';
   const [day, setDay] = useState(defDay);
@@ -445,6 +445,8 @@ function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog
   const color = DAY_COLOR[day];
 
   const bfProps = { day, parData, logData, updatePar, updateLog };
+
+  const hasPar = Object.keys((parData.bfast || {})[day] || {}).length > 0;
 
   return (
     <div>
@@ -454,6 +456,7 @@ function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog
           <span className="sheet-title-main">🥞 {DAY_SHORT[day]} — Breakfast Cook/Waste</span>
           <span style={{ display:'flex', alignItems:'center', gap:6 }}>
             <span className="sheet-date-line no-print">Date: <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></span>
+            {hasPar && <button className="copy-par-btn no-print" onClick={() => { if(window.confirm('Copy ' + DAY_SHORT[day] + ' pars to ALL days?')) copyParToAllDays(day); }}>📋 Copy to all days</button>}
             <button className="edit-toggle no-print" onClick={() => setEditing(e => !e)}>{editing ? '✓ Done' : '✏️ Edit'}</button>
           </span>
         </div>
@@ -485,12 +488,14 @@ function CWBreakfastTab({ store, isoWeek, parData, logData, updatePar, updateLog
 }
 
 // ── GRAB & GO TAB ─────────────────────────────────────────────────────────────
-function GrabGoTab({ store, isoWeek, parData, logData, updatePar, updateLog, ggItems, onGgItems }) {
+function GrabGoTab({ store, isoWeek, parData, logData, updatePar, updateLog, ggItems, onGgItems, copyParToAllDays }) {
   const today = todayDayName();
   const defDay = GG_DAYS.includes(today) ? today : 'SUNDAY';
   const [day, setDay] = useState(defDay);
   const [editing, setEditing] = useState(false);
   const color = DAY_COLOR[day];
+
+  const hasPar = Object.keys((parData.gg || {})[day] || {}).length > 0;
 
   return (
     <div>
@@ -500,6 +505,7 @@ function GrabGoTab({ store, isoWeek, parData, logData, updatePar, updateLog, ggI
           <span className="sheet-title-main">🛍 {DAY_SHORT[day]} — Grab &amp; Go</span>
           <span style={{ display:'flex', alignItems:'center', gap:6 }}>
             <span className="sheet-date-line no-print">Date: <u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></span>
+            {hasPar && <button className="copy-par-btn no-print" onClick={() => { if(window.confirm('Copy ' + DAY_SHORT[day] + ' pars to ALL days?')) copyParToAllDays(day); }}>📋 Copy to all days</button>}
             <button className="edit-toggle no-print" onClick={() => setEditing(e => !e)}>{editing ? '✓ Done' : '✏️ Edit'}</button>
           </span>
         </div>
@@ -780,6 +786,28 @@ function WeeklyMenuApp() {
   const onBfastHotcase = arr => saveCI({ ...customItems, bfastHotcase: arr });
   const onGgItems      = arr => saveCI({ ...customItems, gg: arr });
 
+  const copyBfastParToAllDays = (fromDay) => {
+    const fromPar = (parData.bfast || {})[fromDay] || {};
+    setParData(prev => {
+      const newBfast = Object.fromEntries(BFAST_DAYS.map(d => [d, { ...fromPar }]));
+      const next = { ...prev, bfast: newBfast };
+      savePar(store, next);
+      return next;
+    });
+    flashSaved();
+  };
+
+  const copyGgParToAllDays = (fromDay) => {
+    const fromPar = (parData.gg || {})[fromDay] || {};
+    setParData(prev => {
+      const newGg = Object.fromEntries(GG_DAYS.map(d => [d, { ...fromPar }]));
+      const next = { ...prev, gg: newGg };
+      savePar(store, next);
+      return next;
+    });
+    flashSaved();
+  };
+
   const onBrand = (b) => { saveBrand(store, b); setBrand(b); };
 
   const TABS = [
@@ -855,13 +883,15 @@ function WeeklyMenuApp() {
           <CWBreakfastTab store={store} isoWeek={isoWeek} parData={parData} logData={logData}
             updatePar={updatePar} updateLog={updateLog}
             bfastMain={bfastMain} bfastHotcase={bfastHotcase}
-            onBfastMain={onBfastMain} onBfastHotcase={onBfastHotcase} />
+            onBfastMain={onBfastMain} onBfastHotcase={onBfastHotcase}
+            copyParToAllDays={copyBfastParToAllDays} />
         </div>
         <div className={'panel' + (activeTab === 'gg'    ? ' active' : '')} data-label="Grab &amp; Go">
           <div className="print-sec-hdr print-only">🛍 Cook/Waste — Grab &amp; Go</div>
           <GrabGoTab store={store} isoWeek={isoWeek} parData={parData} logData={logData}
             updatePar={updatePar} updateLog={updateLog}
-            ggItems={ggItems} onGgItems={onGgItems} />
+            ggItems={ggItems} onGgItems={onGgItems}
+            copyParToAllDays={copyGgParToAllDays} />
         </div>
       </div>
     </>
@@ -955,6 +985,14 @@ const CSS = `
     padding: 4px 10px; border-radius: 12px; animation: fadeIn .2s ease;
   }
   @keyframes fadeIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
+  /* COPY PAR BUTTON (in sheet headers) */
+  .copy-par-btn {
+    background: rgba(255,255,255,.18); color: #fff;
+    border: 1px solid rgba(255,255,255,.35); border-radius: 6px;
+    font-size: 11px; font-weight: 700; padding: 3px 9px; cursor: pointer; white-space: nowrap;
+  }
+  .copy-par-btn:hover { background: rgba(255,255,255,.32); }
 
   /* EDIT TOGGLE BUTTON (in sheet headers) */
   .edit-toggle {
