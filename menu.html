@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Keith's Superdeli — Menu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,900;1,400&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -433,42 +436,77 @@ function GrabGoTab({ store, isoWeek, parData, logData, updatePar, updateLog }) {
 }
 
 // ── WEEKLY MENU TAB ───────────────────────────────────────────────────────────
-function WeeklyMenuTab() {
-  const today = todayDayName();
-  const defDay = MENU_DAYS.includes(today) ? today : 'SUNDAY';
-  const [day, setDay] = useState(defDay);
-  const color = DAY_COLOR[day];
-  const m = MENU_ITEMS[day];
-
+function MenuSection({ title, emoji, items, color }) {
+  if (!items || items.length === 0) return null;
   return (
-    <div>
-      <DayPicker days={MENU_DAYS} selected={day} onChange={setDay} />
-      <div className="sheet-card">
-        <div className="sheet-title" style={{ background: color }}>
-          <span className="sheet-title-main">📋 {day.charAt(0) + day.slice(1).toLowerCase()} Menu</span>
+    <div className="ms">
+      <div className="ms-hdr">
+        <span className="ms-rule" style={{ background: color }}/>
+        <span className="ms-title" style={{ color }}>{emoji} {title}</span>
+        <span className="ms-rule" style={{ background: color }}/>
+      </div>
+      {items.map(item => <div key={item} className="ms-item">{item}</div>)}
+    </div>
+  );
+}
+
+function WeeklyMenuTab({ isoWeek, storeName }) {
+  return (
+    <div className="menu-wrap">
+      {/* ── HEADER ── */}
+      <div className="mh">
+        <div className="mh-eyebrow">EST. ◆ SOUTHERN COMFORT DELI ◆ FRESH DAILY</div>
+        <div className="mh-brand">Keith's Superdeli</div>
+        <div className="mh-tagline">"Fastest &amp; Friendliest"</div>
+        <div className="mh-rule"><span/><span className="mh-diamond">◆</span><span/></div>
+        <div className="mh-sub">WEEKLY LUNCH MENU</div>
+        <div className="mh-week">{weekLabel(isoWeek)}</div>
+        {storeName && storeName !== "Keith's Superdeli" &&
+          <div className="mh-store">{storeName}</div>
+        }
+      </div>
+
+      {/* ── 6-DAY GRID ── */}
+      <div className="mg-scroll">
+        <div className="mg">
+          {MENU_DAYS.map(day => {
+            const color = DAY_COLOR[day];
+            const m = MENU_ITEMS[day];
+            return (
+              <div key={day} className="mc">
+                {/* Day header */}
+                <div className="mc-hdr" style={{ background: color }}>
+                  <div className="mc-day">{DAY_SHORT[day]}</div>
+                  <div className="mc-full">{day.charAt(0)+day.slice(1).toLowerCase()}</div>
+                </div>
+
+                {day === 'SUNDAY' ? (
+                  <div className="mc-pullnight">
+                    <div className="mc-moon">🌙</div>
+                    <div className="mc-pn-title">Pull Night</div>
+                    <div className="mc-pn-sub">No hot food service</div>
+                    <div className="mc-pn-sub2">Pulling for Monday</div>
+                  </div>
+                ) : (
+                  <div className="mc-body">
+                    <MenuSection title="Proteins" emoji="🥩" items={m.proteins} color={color} />
+                    <MenuSection title="Sides"    emoji="🥗" items={m.sides}    color={color} />
+                    <MenuSection title="Breads"   emoji="🍞" items={m.breads}   color={color} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        {day === 'SUNDAY' ? (
-          <div className="pull-night-card">
-            <div style={{ fontSize: 40 }}>🌙</div>
-            <div className="pn-title">Pull Night</div>
-            <div className="pn-sub">No hot food service Sunday — pull for Monday tonight</div>
-          </div>
-        ) : (
-          <div className="menu-display">
-            <div className="menu-section">
-              <div className="menu-sec-label" style={{ background: color }}>🥩 Proteins</div>
-              {m.proteins.map(p => <div key={p} className="menu-item">{p}</div>)}
-            </div>
-            <div className="menu-section">
-              <div className="menu-sec-label" style={{ background: color }}>🥗 Sides</div>
-              {m.sides.map(s => <div key={s} className="menu-item">{s}</div>)}
-            </div>
-            <div className="menu-section">
-              <div className="menu-sec-label" style={{ background: color }}>🍞 Breads</div>
-              {m.breads.map(b => <div key={b} className="menu-item">{b}</div>)}
-            </div>
-          </div>
-        )}
+      </div>
+
+      {/* ── FOOTER ── */}
+      <div className="mf">
+        <span className="mf-tag">"Fastest and Friendliest"</span>
+        <span className="mf-dot">◆</span>
+        <span>Items may vary by location</span>
+        <span className="mf-dot">◆</span>
+        <span>Keith's Superdeli</span>
       </div>
     </div>
   );
@@ -568,8 +606,7 @@ function WeeklyMenuApp() {
       {/* CONTENT */}
       <div className="content">
         <div className={'panel' + (activeTab === 'menu'  ? ' active' : '')} data-label="Weekly Menu">
-          <div className="print-sec-hdr print-only">📋 Weekly Menu</div>
-          <WeeklyMenuTab />
+          <WeeklyMenuTab isoWeek={isoWeek} storeName={storeName} />
         </div>
         <div className={'panel' + (activeTab === 'pull'  ? ' active' : '')} data-label="Pull Sheet">
           <div className="print-sec-hdr print-only">📦 Pull Sheet</div>
@@ -721,24 +758,146 @@ const CSS = `
   .fi::-webkit-inner-spin-button { -webkit-appearance: none; }
   .fi.init { color: #555; font-size: 12px; }
 
-  /* WEEKLY MENU DISPLAY */
-  .pull-night-card {
-    text-align: center; padding: 40px 20px;
-    background: linear-gradient(135deg,rgba(74,35,90,.04),rgba(74,35,90,.10));
+  /* ══ PROFESSIONAL WEEKLY MENU ══════════════════════════════════════════════ */
+  .menu-wrap {
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 6px 32px rgba(13,27,42,.18);
+    max-width: 960px;
+    border: 2px solid ${GOLD};
   }
-  .pn-title { font-size: 20px; font-weight: 800; color: #4A235A; margin-top: 10px; }
-  .pn-sub   { font-size: 13px; color: #777; margin-top: 6px; }
-  .menu-display { padding: 10px 0; }
-  .menu-section { margin-bottom: 2px; }
-  .menu-sec-label {
-    color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .6px;
-    text-transform: uppercase; padding: 5px 14px;
+
+  /* Header */
+  .mh {
+    background: ${NAVY};
+    text-align: center;
+    padding: 22px 20px 16px;
+    position: relative;
   }
-  .menu-item {
-    font-size: 14px; padding: 7px 14px; border-bottom: 1px solid #f0f2f5;
-    color: #1a1a1a;
+  .mh::after {
+    content: ''; display: block; position: absolute; bottom: 0; left: 0; right: 0;
+    height: 4px; background: linear-gradient(90deg, transparent, ${GOLD}, ${GOLD}, transparent);
   }
-  .menu-item:nth-child(even) { background: #f8f9fb; }
+  .mh-eyebrow {
+    font-family: 'Lato', sans-serif;
+    font-size: 9px; font-weight: 700; letter-spacing: 3px;
+    color: rgba(245,197,24,.55); text-transform: uppercase; margin-bottom: 6px;
+  }
+  .mh-brand {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: clamp(26px, 4vw, 40px); font-weight: 900;
+    color: ${GOLD};
+    letter-spacing: 1px;
+    line-height: 1;
+    text-shadow: 0 2px 12px rgba(0,0,0,.35);
+  }
+  .mh-tagline {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    color: rgba(245,197,24,.65);
+    margin-top: 4px;
+  }
+  .mh-rule {
+    display: flex; align-items: center; gap: 10px;
+    margin: 10px auto; max-width: 260px;
+  }
+  .mh-rule span:not(.mh-diamond) {
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245,197,24,.4), transparent);
+  }
+  .mh-diamond { color: ${GOLD}; font-size: 10px; }
+  .mh-sub {
+    font-family: 'Lato', sans-serif;
+    font-size: 10px; font-weight: 900; letter-spacing: 5px;
+    color: rgba(255,255,255,.6); text-transform: uppercase;
+  }
+  .mh-week {
+    font-family: 'Lato', sans-serif;
+    font-size: 12px; color: rgba(255,255,255,.45);
+    margin-top: 3px;
+  }
+  .mh-store {
+    font-family: 'Lato', sans-serif;
+    font-size: 11px; font-weight: 700;
+    color: rgba(245,197,24,.8);
+    margin-top: 2px; letter-spacing: 1px;
+  }
+
+  /* Day grid */
+  .mg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mg {
+    display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr));
+    border-top: 4px solid ${GOLD};
+  }
+  .mc { border-right: 1px solid #e8eaf0; }
+  .mc:last-child { border-right: none; }
+
+  .mc-hdr {
+    text-align: center; padding: 11px 6px 9px;
+    border-bottom: 2px solid rgba(255,255,255,.15);
+  }
+  .mc-day {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 17px; font-weight: 900; color: #fff; letter-spacing: .5px;
+  }
+  .mc-full {
+    font-family: 'Lato', sans-serif;
+    font-size: 8px; font-weight: 300; letter-spacing: 2px;
+    color: rgba(255,255,255,.6); text-transform: uppercase; margin-top: 1px;
+  }
+
+  /* Pull night column */
+  .mc-pullnight {
+    text-align: center; padding: 28px 10px;
+    background: linear-gradient(160deg, rgba(74,35,90,.04), rgba(74,35,90,.1));
+    min-height: 220px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .mc-moon   { font-size: 36px; }
+  .mc-pn-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px; font-weight: 600; color: #4A235A; margin-top: 8px;
+  }
+  .mc-pn-sub  { font-family: 'Lato', sans-serif; font-size: 10px; color: #999; margin-top: 3px; }
+  .mc-pn-sub2 { font-family: 'Lato', sans-serif; font-size: 9px; color: #bbb; font-style: italic; margin-top: 2px; }
+
+  /* Menu sections per day */
+  .mc-body { padding: 8px 0 10px; }
+  .ms { margin-bottom: 4px; }
+  .ms-hdr {
+    display: flex; align-items: center; gap: 5px; padding: 5px 8px 3px;
+  }
+  .ms-rule { flex: 1; height: 1px; opacity: .25; }
+  .ms-title {
+    font-family: 'Lato', sans-serif;
+    font-size: 8px; font-weight: 900;
+    letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
+  }
+  .ms-item {
+    font-family: 'Lato', sans-serif;
+    font-size: 11.5px; font-weight: 400;
+    padding: 3px 10px; color: #2c2c2c; line-height: 1.35;
+  }
+  .ms-item:nth-child(even) { background: #f9f9fb; }
+
+  /* Footer */
+  .mf {
+    background: ${NAVY};
+    border-top: 3px solid ${GOLD};
+    padding: 9px 16px;
+    text-align: center;
+    font-family: 'Lato', sans-serif;
+    font-size: 11px; color: rgba(255,255,255,.45);
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .mf-tag {
+    font-family: 'Playfair Display', serif;
+    font-style: italic; color: ${GOLD}; font-size: 12px;
+  }
+  .mf-dot { color: ${GOLD}; font-size: 8px; }
 
   /* PRINT ONLY */
   .print-only { display: none; }
@@ -748,12 +907,18 @@ const CSS = `
     .no-print   { display: none !important; }
     .print-only { display: block !important; }
     body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { size: letter portrait; margin: 0.4in; }
 
-    .content  { padding: 0; }
-    .panel    { display: block !important; page-break-after: always; }
+    /* Weekly menu gets landscape — all other sheets get portrait */
+    @page { size: letter portrait; margin: 0.35in; }
+
+    .content { padding: 0; }
+    .panel   { display: block !important; page-break-after: always; }
     .panel:last-child { page-break-after: avoid; }
 
+    /* Menu panel: landscape + no margin decoration */
+    .panel[data-label="Weekly Menu"] { page-break-after: always; }
+
+    /* ── Operational sheets (portrait) ── */
     .day-picker { display: none !important; }
     .sheet-card { box-shadow: none; border: 1px solid #ccc; max-width: 100%; }
     .sheet-title { padding: 7px 10px; }
@@ -764,23 +929,39 @@ const CSS = `
     .form-trow.bf { grid-template-columns: 1fr 44px 64px 54px 70px; }
     .ft-item    { font-size: 10px; }
     .sec-divider { font-size: 9px; padding: 4px 10px; }
-
     .fi {
       border: none; border-bottom: 1px solid #999; border-radius: 0;
       background: transparent; color: #000; font-size: 11px; padding: 1px;
     }
     body.print-blank .fi { color: transparent !important; }
 
-    .menu-item { font-size: 11px; padding: 4px 10px; }
-    .menu-sec-label { font-size: 9px; padding: 3px 10px; }
+    /* ── Professional menu print styles ── */
+    .menu-wrap {
+      box-shadow: none; border: 2px solid ${GOLD};
+      border-radius: 0; max-width: 100%;
+    }
+    .mg { grid-template-columns: repeat(6, 1fr); }
+    .mg-scroll { overflow: visible; }
+    .mh-brand   { font-size: 30px; }
+    .mh-eyebrow { font-size: 8px; }
+    .mh         { padding: 14px 16px 12px; }
+    .mc-hdr     { padding: 8px 4px 6px; }
+    .mc-day     { font-size: 14px; }
+    .mc-body    { padding: 5px 0 7px; }
+    .ms-item    { font-size: 9.5px; padding: 2px 7px; }
+    .ms-title   { font-size: 7px; }
+    .mc-pullnight { min-height: 160px; }
+    .mc-pn-title  { font-size: 12px; }
+    .mf { padding: 6px 12px; font-size: 10px; }
+    .mf-tag { font-size: 11px; }
 
     .print-sec-hdr {
-      font-size: 14px; font-weight: 900; color: ${NAVY};
-      border-bottom: 2px solid ${GOLD}; padding-bottom: 5px; margin-bottom: 10px;
+      font-size: 13px; font-weight: 900; color: ${NAVY};
+      border-bottom: 2px solid ${GOLD}; padding-bottom: 4px; margin-bottom: 8px;
     }
     .print-header {
       text-align: center; font-size: 11px; color: #444;
-      border-bottom: 1.5px solid ${NAVY}; padding-bottom: 5px; margin-bottom: 10px;
+      border-bottom: 1.5px solid ${NAVY}; padding-bottom: 4px; margin-bottom: 8px;
     }
   }
 `;
