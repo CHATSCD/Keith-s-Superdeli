@@ -2,6 +2,211 @@
 // Inventory, Food Cost, Invoices, Orders, Recipes, Suppliers, Analytics
 // All backed by Google Sheets tabs via sheetsApi.js.
 
+// ════════════════════════════════════════
+// VOICE SEARCH — Web Speech API helper
+// ════════════════════════════════════════
+
+const VoiceSearch = (() => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const supported = !!SpeechRecognition;
+
+  function fuzzyScore(query, target) {
+    const q = query.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+    const t = target.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+    if (t === q) return 1;
+    if (t.includes(q)) return 0.9;
+    const qWords = q.split(/\s+/);
+    const tWords = t.split(/\s+/);
+    let matched = 0;
+    qWords.forEach(qw => { if (tWords.some(tw => tw.includes(qw) || qw.includes(tw))) matched++; });
+    if (qWords.length === 0) return 0;
+    return matched / qWords.length * 0.8;
+  }
+
+  function searchItems(query, items, limit = 8) {
+    if (!query || !items.length) return [];
+    const scored = items.map(item => ({
+      item,
+      score: Math.max(fuzzyScore(query, item.name), fuzzyScore(query, item.section || ''))
+    }));
+    return scored.filter(s => s.score > 0.2).sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  function createMicButton(onResult) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-ghost btn-sm voice-mic-btn';
+    btn.innerHTML = '🎤';
+    btn.title = supported ? 'Tap to search by voice' : 'Voice search not supported in this browser';
+    btn.disabled = !supported;
+    btn.style.cssText = 'font-size:20px;padding:6px 10px;border-radius:50%;min-width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s';
+    if (supported) {
+      btn.addEventListener('click', () => startListening(btn, onResult));
+    }
+    return btn;
+  }
+
+  function startListening(btn, onResult) {
+    const recog = new SpeechRecognition();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 3;
+
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+    btn.innerHTML = '⏺';
+    btn.disabled = true;
+
+    recog.onresult = (e) => {
+      const transcript = e.results[0][0].transcript.trim();
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.innerHTML = '🎤';
+      btn.disabled = false;
+      if (transcript) onResult(transcript);
+    };
+    recog.onerror = () => {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.innerHTML = '🎤';
+      btn.disabled = false;
+    };
+    recog.onend = () => {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.innerHTML = '🎤';
+      btn.disabled = false;
+    };
+    recog.start();
+  }
+
+  function createSearchOverlay(items, onSelect) {
+    const overlay = document.createElement('div');
+    overlay.className = 'voice-search-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#fff;border-radius:12px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.25)';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:16px 20px;border-bottom:1px solid var(--gray,#e5e7eb);display:flex;align-items:center;gap:12px';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search items or tap 🎤';
+    searchInput.style.cssText = 'flex:1;padding:10px 14px;border:1.5px solid var(--gray,#d1d5db);border-radius:8px;font-size:15px;outline:none';
+
+    const micBtn = createMicButton((transcript) => {
+      searchInput.value = transcript;
+      searchInput.dispatchEvent(new Event('input'));
+    });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px;color:var(--muted,#6b7280)';
+    closeBtn.addEventListener('click', () => overlay.remove());
+
+    header.append(searchInput, micBtn, closeBtn);
+
+    const resultsList = document.createElement('div');
+    resultsList.style.cssText = 'padding:8px 0';
+
+    const statusMsg = document.createElement('div');
+    statusMsg.style.cssText = 'padding:20px;text-align:center;color:var(--muted,#6b7280);font-size:14px';
+    statusMsg.textContent = 'Say an item name or type to search';
+    resultsList.appendChild(statusMsg);
+
+    function renderResults(query) {
+      resultsList.innerHTML = '';
+      if (!query.trim()) {
+        resultsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted,#6b7280);font-size:14px">Say an item name or type to search</div>';
+        return;
+      }
+      const results = searchItems(query, items);
+      if (results.length === 0) {
+        resultsList.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted,#6b7280);font-size:14px">No exact match for "<strong>${query}</strong>"</div>`;
+        const similar = searchItems(query.split(/\s+/)[0], items, 10);
+        if (similar.length) {
+          const simHeader = document.createElement('div');
+          simHeader.style.cssText = 'padding:8px 20px;font-size:12px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.05em';
+          simHeader.textContent = 'Similar items';
+          resultsList.appendChild(simHeader);
+          similar.forEach(s => resultsList.appendChild(makeResultRow(s.item)));
+        }
+        return;
+      }
+      results.forEach(s => resultsList.appendChild(makeResultRow(s.item)));
+    }
+
+    function makeResultRow(item) {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:12px 20px;cursor:pointer;border-bottom:1px solid var(--gray,#f3f4f6);display:flex;justify-content:space-between;align-items:center;transition:background .15s';
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--bg,#f9fafb)');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+      row.innerHTML = `
+        <div>
+          <div style="font-weight:600;font-size:14px">${item.name}</div>
+          <div style="font-size:12px;color:var(--muted,#6b7280)">${item.section || ''}${item.num ? ' · #' + item.num : ''}${item.price ? ' · $' + item.price.toFixed(2) : ''}</div>
+        </div>
+        <div style="font-size:11px;color:var(--ks-blue,#1e40af);font-weight:600">SELECT →</div>
+      `;
+      row.addEventListener('click', () => {
+        overlay.remove();
+        promptQty(item, onSelect);
+      });
+      return row;
+    }
+
+    searchInput.addEventListener('input', () => renderResults(searchInput.value));
+
+    panel.append(header, resultsList);
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    searchInput.focus();
+    return overlay;
+  }
+
+  function promptQty(item, onSelect) {
+    const overlay = document.createElement('div');
+    overlay.className = 'voice-qty-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#fff;border-radius:12px;width:100%;max-width:360px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.25);text-align:center';
+    panel.innerHTML = `
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">${item.name}</div>
+      <div style="font-size:13px;color:var(--muted,#6b7280);margin-bottom:16px">${item.section || ''}${item.price ? ' · $' + item.price.toFixed(2) + ' per unit' : ''}</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:8px">How many?</div>
+      <input type="number" id="voice-qty-input" min="0" step="0.5" value="1" style="width:100px;padding:10px;font-size:22px;font-weight:700;text-align:center;border:2px solid var(--ks-blue,#1e40af);border-radius:8px;outline:none;margin-bottom:16px">
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn btn-ghost" id="voice-qty-cancel">Cancel</button>
+        <button class="btn btn-primary" id="voice-qty-confirm">Confirm</button>
+      </div>
+    `;
+    overlay.appendChild(panel);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+
+    const qtyInput = panel.querySelector('#voice-qty-input');
+    qtyInput.focus();
+    qtyInput.select();
+
+    panel.querySelector('#voice-qty-cancel').addEventListener('click', () => overlay.remove());
+    panel.querySelector('#voice-qty-confirm').addEventListener('click', () => {
+      const qty = parseFloat(qtyInput.value) || 0;
+      overlay.remove();
+      if (qty > 0) onSelect(item, qty);
+    });
+    qtyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { panel.querySelector('#voice-qty-confirm').click(); }
+      if (e.key === 'Escape') { overlay.remove(); }
+    });
+  }
+
+  return { supported, createMicButton, createSearchOverlay, searchItems };
+})();
+
 const DELI_TABS = {
   dailyinv:  { label: 'Daily Inv. Form', tab: 'Daily Inv Control', headers: ['Week Of','Section','Field','Sun','Mon','Tue','Wed','Thu','Fri','Sat'] },
   inventory: { label: 'Inventory',  tab: 'Inventory',           headers: ['Count By','Item','Item#','Case Pack','On Hand','Per','Total'] },
@@ -228,6 +433,31 @@ const COUNT_BY_OPTIONS = ['BAG','BOX','CAKE','CAN','CARTON','CASE','CONTAINER','
 const INV_SECTIONS     = ['Deli','Fountain','Branded Deli'];
 const INV_CATEGORIES   = ['Bread','Cheese','Condiments','Dairy','Deli Meat','Other','Packaging','Produce','BIB / CO2','Cafe Tango','Coffee','Coffee Beans','Creamer & Sweetener','Cups & Lids','Syrups & Sauce','Pizza','Spices','Toppings','Wings'];
 const INV_FLAGS        = ['OK','LOW','OUT'];
+
+function buildItemMap(raw) {
+  if (!raw || raw.length < 2) return [];
+  let hdrIdx = 0;
+  for (let i = 0; i < Math.min(6, raw.length); i++) {
+    if (raw[i].some(c => /count.?by|item.?#/i.test(c||''))) { hdrIdx = i; break; }
+  }
+  const hdr = raw[hdrIdx] || [];
+  const nameCol  = hdr.findIndex(h => /^item$|^item.?name/i.test((h||'').trim()));
+  const numCol   = hdr.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+  const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+  let sec = '';
+  const items = [];
+  raw.slice(hdrIdx + 1).forEach(r => {
+    const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
+    const nonEmpty = r.filter(c=>(c||'').trim()).length;
+    if (!colA && colB && nonEmpty <= 3) { sec = colB; return; }
+    const name = nameCol >= 0 ? (r[nameCol]||'').trim() : (r[1]||'').trim();
+    const num  = numCol  >= 0 ? (r[numCol] ||'').trim() : (r[2]||'').trim();
+    if (!name) return;
+    const price = perCol >= 0 ? parseFloat(r[perCol]) || 0 : 0;
+    items.push({ num, name, section: sec, price });
+  });
+  return items;
+}
 
 // ════════════════════════════════════════
 // INVENTORY
@@ -660,6 +890,8 @@ function renderCountSheet(content, raw) {
         <span>Inventory Count Sheet</span>
         <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           ${outCount.all > 0 ? `<span style="font-size:12px;font-weight:700;color:var(--red)">${outCount.all} OUT total</span>` : ''}
+          <button class="btn btn-ghost btn-sm" id="inv-voice-search-btn" style="font-size:16px" title="Voice search items">🎤 Find Item</button>
+          <button class="btn btn-ghost btn-sm" id="imperial-price-btn">🔄 Update Imperial Prices</button>
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
@@ -705,6 +937,58 @@ function renderCountSheet(content, raw) {
       });
     });
   });
+
+  // ── Voice search for inventory ──
+  const invVoiceBtn = content.querySelector('#inv-voice-search-btn');
+  if (invVoiceBtn) {
+    invVoiceBtn.addEventListener('click', () => {
+      const items = buildItemMap(deliState.data['inventory'] || []);
+      VoiceSearch.createSearchOverlay(items, (item) => {
+        const table = content.querySelector('#cs-main-table');
+        if (!table) return;
+        const rows = table.querySelectorAll('tbody tr');
+        for (const row of rows) {
+          const cells = row.querySelectorAll('td');
+          const rowText = Array.from(cells).map(c => c.textContent).join(' ').toLowerCase();
+          if (rowText.includes(item.name.toLowerCase()) || (item.num && rowText.includes(item.num))) {
+            content.querySelectorAll('.cs-inv-tab').forEach(b => {
+              if (b.dataset.invSec === 'all') b.click();
+            });
+            row.style.background = '#FFFBEB';
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => { row.style.background = ''; }, 3000);
+            const countInput = row.querySelector('.cs-count-input');
+            if (countInput) countInput.focus();
+            return;
+          }
+        }
+      });
+    });
+  }
+
+  // ── Imperial price update ──
+  const impPriceBtn = content.querySelector('#imperial-price-btn');
+  if (impPriceBtn && typeof updateImperialPrices === 'function') {
+    impPriceBtn.addEventListener('click', async () => {
+      if (!confirm('Update Imperial item prices and add missing items?')) return;
+      impPriceBtn.disabled = true;
+      impPriceBtn.textContent = '⏳ Updating…';
+      try {
+        const sid = deliState.countSheetId || deliState.sheetId;
+        const result = await updateImperialPrices(deliState.sa, sid);
+        impPriceBtn.textContent = `✅ ${result.updatedCount} updated, ${result.addedCount} added`;
+        setTimeout(reloadTab, 1500);
+      } catch (err) {
+        impPriceBtn.textContent = '❌ Error';
+        alert('Failed to update Imperial prices: ' + err.message);
+      } finally {
+        setTimeout(() => {
+          impPriceBtn.disabled = false;
+          impPriceBtn.textContent = '🔄 Update Imperial Prices';
+        }, 3000);
+      }
+    });
+  }
 
   // ── BEK Upload panel ──
   const bekUploadBtn  = content.querySelector('#bek-upload-btn');
@@ -2264,34 +2548,6 @@ function renderWasteLog(content, rows) {
     } catch (_) { return []; }
   }
 
-  // Build inv item map: itemNum -> { name, section, unitPrice }
-  function buildItemMap(raw) {
-    if (!raw || raw.length < 2) return [];
-    let hdrIdx = 0;
-    for (let i = 0; i < Math.min(6, raw.length); i++) {
-      if (raw[i].some(c => /count.?by|item.?#/i.test(c||''))) { hdrIdx = i; break; }
-    }
-    const hdr = raw[hdrIdx] || [];
-    const nameCol  = hdr.findIndex(h => /^item$|^item.?name/i.test((h||'').trim()));
-    const numCol   = hdr.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
-    const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
-
-    // track current section from section-header rows
-    let sec = '';
-    const items = [];
-    raw.slice(hdrIdx + 1).forEach(r => {
-      const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
-      const nonEmpty = r.filter(c=>(c||'').trim()).length;
-      if (!colA && colB && nonEmpty <= 3) { sec = colB; return; }
-      const name = nameCol >= 0 ? (r[nameCol]||'').trim() : (r[1]||'').trim();
-      const num  = numCol  >= 0 ? (r[numCol] ||'').trim() : (r[2]||'').trim();
-      if (!name) return;
-      const price = perCol >= 0 ? parseFloat(r[perCol]) || 0 : 0;
-      items.push({ num, name, section: sec, price });
-    });
-    return items;
-  }
-
   const today = new Date().toISOString().split('T')[0];
   const dataRows = rows && rows.length > 1 ? rows.slice(1) : [];
 
@@ -2353,10 +2609,13 @@ function renderWasteLog(content, rows) {
           <input type="date" id="wl-date" value="${today}">
         </div>
         <div class="form-row"><label>Item</label>
-          <select id="wl-item" style="max-width:100%">
-            <option value="">— Select Item —</option>
-            ${initialOptions}
-          </select>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="wl-item" style="max-width:100%;flex:1">
+              <option value="">— Select Item —</option>
+              ${initialOptions}
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" id="wl-voice-btn" title="Search by voice" style="font-size:20px;padding:6px 10px;border-radius:50%;min-width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center">🎤</button>
+          </div>
         </div>
         <div class="form-row"><label>Section</label>
           <input type="text" id="wl-section" readonly style="background:var(--bg)" placeholder="auto-filled">
@@ -2397,6 +2656,35 @@ function renderWasteLog(content, rows) {
       </div>
     </div>
   `;
+
+  // ── Voice search for waste log ──
+  const wlVoiceBtn = content.querySelector('#wl-voice-btn');
+  if (wlVoiceBtn && VoiceSearch.supported) {
+    wlVoiceBtn.addEventListener('click', async () => {
+      let raw = invData;
+      if (raw.length < 2) raw = await ensureInvLoaded();
+      const items = buildItemMap(raw);
+      VoiceSearch.createSearchOverlay(items, (item, qty) => {
+        const itemSel = content.querySelector('#wl-item');
+        if (itemSel) {
+          for (let i = 0; i < itemSel.options.length; i++) {
+            if (itemSel.options[i].value === item.num) {
+              itemSel.selectedIndex = i;
+              itemSel.dispatchEvent(new Event('change'));
+              break;
+            }
+          }
+        }
+        const qtyEl = content.querySelector('#wl-qty');
+        if (qtyEl) qtyEl.value = qty;
+        const priceEl = content.querySelector('#wl-price');
+        if (priceEl) priceEl.dispatchEvent(new Event('input'));
+      });
+    });
+  } else if (wlVoiceBtn) {
+    wlVoiceBtn.disabled = true;
+    wlVoiceBtn.title = 'Voice search not supported in this browser';
+  }
 
   // ── Auto-fill price and section when item changes ──
   const itemSel   = content.querySelector('#wl-item');
@@ -2708,7 +2996,12 @@ function renderOrders(content, rows) {
       <div class="form-grid">
         <div class="form-row"><label>Date</label><input type="date" id="ord-date" value="${today}"></div>
         <div class="form-row"><label>Vendor</label><input type="text" id="ord-vendor" placeholder="e.g. Sysco"></div>
-        <div class="form-row"><label>Item / Description</label><input type="text" id="ord-item" placeholder="e.g. Sliced Turkey Breast"></div>
+        <div class="form-row"><label>Item / Description</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="ord-item" placeholder="e.g. Sliced Turkey Breast" style="flex:1">
+            <button type="button" class="btn btn-ghost btn-sm" id="ord-voice-btn" title="Search by voice" style="font-size:20px;padding:6px 10px;border-radius:50%;min-width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center">🎤</button>
+          </div>
+        </div>
         <div class="form-row"><label>Unit</label><input type="text" id="ord-unit" placeholder="case, lbs, each…"></div>
         <div class="form-row"><label>Quantity</label><input type="number" id="ord-qty" min="0" step="0.5" placeholder="1"></div>
         <div class="form-row"><label>Status</label>
@@ -2741,6 +3034,33 @@ function renderOrders(content, rows) {
       </div>
     </div>
   `;
+
+  // ── Voice search for orders ──
+  const ordVoiceBtn = content.querySelector('#ord-voice-btn');
+  if (ordVoiceBtn && VoiceSearch.supported) {
+    ordVoiceBtn.addEventListener('click', async () => {
+      const invRaw = deliState.data['inventory'] || [];
+      let items = buildItemMap(invRaw);
+      if (items.length < 2 && (deliState.sheetId || deliState.countSheetId)) {
+        try {
+          const sid = deliState.countSheetId || deliState.sheetId;
+          const result = await sheetsGet(deliState.sa, sid, 'A1:Z1000');
+          items = buildItemMap(result.values || []);
+        } catch (_) {}
+      }
+      VoiceSearch.createSearchOverlay(items, (item, qty) => {
+        const ordItem = content.querySelector('#ord-item');
+        const ordQty  = content.querySelector('#ord-qty');
+        const ordUnit = content.querySelector('#ord-unit');
+        if (ordItem) ordItem.value = item.name;
+        if (ordQty)  ordQty.value  = qty;
+        if (ordUnit && !ordUnit.value) ordUnit.value = 'case';
+      });
+    });
+  } else if (ordVoiceBtn) {
+    ordVoiceBtn.disabled = true;
+    ordVoiceBtn.title = 'Voice search not supported in this browser';
+  }
 
   content.querySelector('#save-ord-btn').addEventListener('click', async () => {
     const btn      = content.querySelector('#save-ord-btn');
