@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Google Sans', Arial, sans-serif; font-size: 14px; color: #202124; padding: 12px; }
+  .search-box { display: flex; gap: 6px; margin-bottom: 12px; }
+  .search-box input {
+    flex: 1; padding: 10px 12px; border: 1.5px solid #dadce0; border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color .2s;
+  }
+  .search-box input:focus { border-color: #1a73e8; }
+  .mic-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: #1a73e8; color: #fff; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all .2s;
+  }
+  .mic-btn:hover { background: #1557b0; }
+  .mic-btn.listening { background: #d93025; animation: pulse 1s infinite; }
+  .mic-btn:disabled { background: #dadce0; cursor: default; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  .status { font-size: 12px; color: #5f6368; text-align: center; margin-bottom: 10px; min-height: 18px; }
+  .status.error { color: #d93025; }
+  .results { max-height: calc(100vh - 200px); overflow-y: auto; }
+  .result-item {
+    padding: 10px 12px; border-bottom: 1px solid #f1f3f4; cursor: pointer; transition: background .15s;
+  }
+  .result-item:hover { background: #f1f3f4; }
+  .result-name { font-weight: 600; font-size: 14px; }
+  .result-meta { font-size: 12px; color: #5f6368; margin-top: 2px; }
+  .result-action { font-size: 11px; color: #1a73e8; font-weight: 600; margin-top: 4px; }
+  .section-label {
+    padding: 8px 12px; font-size: 11px; font-weight: 700; color: #5f6368;
+    text-transform: uppercase; letter-spacing: .5px; background: #f8f9fa;
+  }
+  .qty-panel {
+    position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+    border-top: 2px solid #1a73e8; padding: 16px; z-index: 10;
+    box-shadow: 0 -4px 12px rgba(0,0,0,.1);
+  }
+  .qty-panel h3 { font-size: 15px; margin-bottom: 4px; }
+  .qty-panel .meta { font-size: 12px; color: #5f6368; margin-bottom: 12px; }
+  .qty-row { display: flex; gap: 8px; align-items: center; }
+  .qty-row input {
+    width: 80px; padding: 10px; font-size: 20px; font-weight: 700;
+    text-align: center; border: 2px solid #1a73e8; border-radius: 8px; outline: none;
+  }
+  .qty-row button {
+    flex: 1; padding: 10px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .btn-confirm { background: #1a73e8; color: #fff; }
+  .btn-confirm:hover { background: #1557b0; }
+  .btn-cancel { background: #f1f3f4; color: #5f6368; }
+  .empty { text-align: center; color: #5f6368; padding: 30px 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="search-box">
+  <input type="text" id="searchInput" placeholder="Search items or tap mic…">
+  <button class="mic-btn" id="micBtn" title="Tap to search by voice">🎤</button>
+</div>
+<div class="status" id="status">Tap 🎤 or type to search</div>
+<div class="results" id="results">
+  <div class="empty">Loading items from sheet…</div>
+</div>
+<div class="qty-panel" id="qtyPanel" style="display:none"></div>
+
+<script>
+var allItems = [];
+var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// Load items from sheet
+google.script.run.withSuccessHandler(function(items) {
+  allItems = items || [];
+  document.getElementById('results').innerHTML =
+    '<div class="empty">Tap 🎤 or type to search ' + allItems.length + ' items</div>';
+}).withFailureHandler(function(err) {
+  document.getElementById('results').innerHTML =
+    '<div class="empty" style="color:#d93025">Error loading items: ' + err.message + '</div>';
+}).getSheetItems();
+
+// Search
+function fuzzyScore(query, target) {
+  var q = query.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+  var t = target.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+  if (t === q) return 1;
+  if (t.indexOf(q) >= 0) return 0.9;
+  var qWords = q.split(/\s+/);
+  var matched = 0;
+  qWords.forEach(function(qw) {
+    var tWords = t.split(/\s+/);
+    for (var i = 0; i < tWords.length; i++) {
+      if (tWords[i].indexOf(qw) >= 0 || qw.indexOf(tWords[i]) >= 0) { matched++; break; }
+    }
+  });
+  return qWords.length ? (matched / qWords.length * 0.8) : 0;
+}
+
+function searchItems(query) {
+  if (!query.trim()) return [];
+  var scored = allItems.map(function(item) {
+    return {
+      item: item,
+      score: Math.max(fuzzyScore(query, item.name), fuzzyScore(query, item.section || ''))
+    };
+  });
+  return scored.filter(function(s) { return s.score > 0.2; })
+    .sort(function(a, b) { return b.score - a.score; })
+    .slice(0, 10);
+}
+
+function renderResults(query) {
+  var el = document.getElementById('results');
+  if (!query.trim()) {
+    el.innerHTML = '<div class="empty">Tap 🎤 or type to search ' + allItems.length + ' items</div>';
+    return;
+  }
+  var results = searchItems(query);
+  if (results.length === 0) {
+    var html = '<div class="empty">No match for "<strong>' + query + '</strong>"</div>';
+    // Try partial match on first word
+    var firstWord = query.split(/\s+/)[0];
+    var similar = [];
+    if (firstWord.length > 2) {
+      similar = allItems.filter(function(item) {
+        return item.name.toLowerCase().indexOf(firstWord.toLowerCase()) >= 0;
+      }).slice(0, 8);
+    }
+    if (similar.length) {
+      html += '<div class="section-label">Similar items</div>';
+      similar.forEach(function(item) { html += makeRow(item); });
+    }
+    el.innerHTML = html;
+  } else {
+    el.innerHTML = results.map(function(s) { return makeRow(s.item); }).join('');
+  }
+
+  el.querySelectorAll('.result-item').forEach(function(row) {
+    row.addEventListener('click', function() {
+      var idx = parseInt(row.dataset.idx);
+      var item = allItems[idx];
+      if (item) showQtyPanel(item);
+    });
+  });
+}
+
+function makeRow(item) {
+  var idx = allItems.indexOf(item);
+  var price = item.price ? '$' + item.price.toFixed(2) : '';
+  return '<div class="result-item" data-idx="' + idx + '">' +
+    '<div class="result-name">' + item.name + '</div>' +
+    '<div class="result-meta">' + (item.section || '') +
+      (item.num ? ' · #' + item.num : '') +
+      (price ? ' · ' + price : '') +
+      ' · Row ' + item.row + '</div>' +
+    '<div class="result-action">TAP TO SELECT →</div></div>';
+}
+
+// Quantity panel
+function showQtyPanel(item) {
+  var panel = document.getElementById('qtyPanel');
+  var price = item.price ? '$' + item.price.toFixed(2) + ' per unit' : '';
+  panel.innerHTML =
+    '<h3>' + item.name + '</h3>' +
+    '<div class="meta">' + (item.section || '') + (price ? ' · ' + price : '') + ' · Row ' + item.row + '</div>' +
+    '<div style="font-weight:600;margin-bottom:8px">How many?</div>' +
+    '<div class="qty-row">' +
+      '<input type="number" id="qtyInput" min="0" step="0.5" value="1">' +
+      '<button class="btn-cancel" id="qtyCancel">Cancel</button>' +
+      '<button class="btn-confirm" id="qtyConfirm">Go to Row</button>' +
+    '</div>';
+  panel.style.display = '';
+
+  var qtyInput = document.getElementById('qtyInput');
+  qtyInput.focus();
+  qtyInput.select();
+
+  document.getElementById('qtyCancel').addEventListener('click', function() {
+    panel.style.display = 'none';
+  });
+
+  document.getElementById('qtyConfirm').addEventListener('click', function() {
+    panel.style.display = 'none';
+    document.getElementById('status').textContent = 'Jumping to row ' + item.row + '…';
+    google.script.run.withSuccessHandler(function() {
+      document.getElementById('status').textContent = '✅ Selected: ' + item.name + ' (Row ' + item.row + ')';
+    }).goToRow(item.row);
+  });
+
+  qtyInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('qtyConfirm').click();
+    if (e.key === 'Escape') panel.style.display = 'none';
+  });
+}
+
+// Text search
+document.getElementById('searchInput').addEventListener('input', function() {
+  renderResults(this.value);
+});
+
+// Voice
+var micBtn = document.getElementById('micBtn');
+if (!SpeechRecognition) {
+  micBtn.disabled = true;
+  micBtn.title = 'Voice not supported in this browser. Use Chrome.';
+} else {
+  micBtn.addEventListener('click', function() {
+    var recog = new SpeechRecognition();
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+
+    micBtn.classList.add('listening');
+    micBtn.disabled = true;
+    document.getElementById('status').textContent = 'Listening…';
+
+    recog.onresult = function(e) {
+      var transcript = e.results[0][0].transcript.trim();
+      micBtn.classList.remove('listening');
+      micBtn.disabled = false;
+      document.getElementById('status').textContent = 'Heard: "' + transcript + '"';
+      document.getElementById('searchInput').value = transcript;
+      renderResults(transcript);
+    };
+    recog.onerror = function(e) {
+      micBtn.classList.remove('listening');
+      micBtn.disabled = false;
+      document.getElementById('status').textContent = 'Could not hear. Try again.';
+      document.getElementById('status').classList.add('error');
+      setTimeout(function() { document.getElementById('status').classList.remove('error'); }, 3000);
+    };
+    recog.onend = function() {
+      micBtn.classList.remove('listening');
+      micBtn.disabled = false;
+    };
+    recog.start();
+  });
+}
+</script>
+</body>
+</html>
