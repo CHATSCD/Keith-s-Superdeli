@@ -379,8 +379,23 @@ async function switchDeliTab(container, tabId) {
       return { ...def, sheetId, rows: [], fetchError: lastErr ? lastErr.message : null };
     }));
 
-    // Cache combined for waste log item lookup
-    const combined = [].concat(...sections.map(s => s.rows.slice(1)));
+    // Cache combined for waste log item lookup — re-map each section's columns into the
+    // canonical order using its own detected header positions (column order varies by tab).
+    const combined = [];
+    sections.forEach(sec => {
+      const p = parseInventorySection(sec);
+      p.dataRows.forEach(r => {
+        combined.push([
+          '',
+          (r[p.nameColIdx]   || '').trim(),
+          (r[p.itemNumColIdx]|| '').trim(),
+          '',
+          (r[p.countColIdx]  || '').trim(),
+          (r[p.perColIdx]    || '').trim(),
+          ''
+        ]);
+      });
+    });
     deliState.data['inventory'] = [['Count By','Item','Item#','Case Pack','On Hand','Per','Total'], ...combined];
 
     try {
@@ -489,50 +504,54 @@ async function bekFetchPrices(itemNums) {
 // INVENTORY — MULTI-SECTION (each section = its own sheet tab)
 // ════════════════════════════════════════
 
+// Parse one inventory section's raw rows into
+// { headers, dataRows, nameColIdx, countColIdx, itemNumColIdx, perColIdx, numCols, headerRowIdx }
+function parseInventorySection(sec) {
+  const raw = sec.rows || [];
+  if (raw.length === 0) return { headers: [], dataRows: [], nameColIdx: 1, countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, numCols: 7, headerRowIdx: 0 };
+
+  // Find header row: prefer a row with 'Count By'/'Item#' pattern; fall back to the
+  // row with the most populated cells in the first 6 rows (title rows are sparse).
+  let headerRowIdx = 0;
+  let headerFound = false;
+  for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+    if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; headerFound = true; break; }
+  }
+  if (!headerFound) {
+    let maxCells = 0;
+    for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
+      const cnt = (raw[ri] || []).filter(c => (c || '').trim()).length;
+      if (cnt > maxCells) { maxCells = cnt; headerRowIdx = ri; }
+    }
+  }
+  const headerRow = raw[headerRowIdx] || [];
+  const dataRows  = raw.slice(headerRowIdx + 1).filter(r => r.some(c => (c || '').trim()));
+
+  let numCols = headerRow.length;
+  for (let i = 0; i < dataRows.length; i++) { if (dataRows[i].length > numCols) numCols = dataRows[i].length; }
+  if (numCols < 1) numCols = 7;
+
+  let countColIdx = headerRow.findIndex(h => /^on.?hand$/i.test((h||'').trim()));
+  if (countColIdx < 0) countColIdx = Math.min(4, numCols - 1);
+  let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+  if (itemNumColIdx < 0) itemNumColIdx = Math.min(2, numCols - 1);
+  let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+  if (perColIdx < 0) perColIdx = Math.min(5, numCols - 1);
+  let nameColIdx = headerRow.findIndex(h => /^item$|item.?name|^description$|^desc$/i.test((h||'').trim()));
+  if (nameColIdx < 0) nameColIdx = Math.min(1, numCols - 1);
+
+  // Build padded header labels
+  const headers = [];
+  for (let i = 0; i < numCols; i++) {
+    headers.push((headerRow[i] || '').trim() || (i === countColIdx ? 'On Hand' : ''));
+  }
+
+  return { headers, dataRows, nameColIdx, countColIdx, itemNumColIdx, perColIdx, numCols, headerRowIdx };
+}
+
 function renderCountSheetSections(content, sections) {
   // sections: [{ key, label, tabName, sheetId, rows: string[][] }]
-
-  // Parse one section's raw rows into { headers, dataRows, countColIdx, itemNumColIdx, perColIdx, numCols }
-  function parseSection(sec) {
-    const raw = sec.rows || [];
-    if (raw.length === 0) return { headers: [], dataRows: [], countColIdx: 4, itemNumColIdx: 2, perColIdx: 5, numCols: 7, headerRowIdx: 0 };
-
-    // Find header row: prefer a row with 'Count By'/'Item#' pattern; fall back to the
-    // row with the most populated cells in the first 6 rows (title rows are sparse).
-    let headerRowIdx = 0;
-    let headerFound = false;
-    for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
-      if (raw[ri].some(c => /count.?by|item.?#|item\s*num/i.test(c || ''))) { headerRowIdx = ri; headerFound = true; break; }
-    }
-    if (!headerFound) {
-      let maxCells = 0;
-      for (let ri = 0; ri < Math.min(6, raw.length); ri++) {
-        const cnt = (raw[ri] || []).filter(c => (c || '').trim()).length;
-        if (cnt > maxCells) { maxCells = cnt; headerRowIdx = ri; }
-      }
-    }
-    const headerRow = raw[headerRowIdx] || [];
-    const dataRows  = raw.slice(headerRowIdx + 1).filter(r => r.some(c => (c || '').trim()));
-
-    let numCols = headerRow.length;
-    for (let i = 0; i < dataRows.length; i++) { if (dataRows[i].length > numCols) numCols = dataRows[i].length; }
-    if (numCols < 1) numCols = 7;
-
-    let countColIdx = headerRow.findIndex(h => /^on.?hand$/i.test((h||'').trim()));
-    if (countColIdx < 0) countColIdx = Math.min(4, numCols - 1);
-    let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
-    if (itemNumColIdx < 0) itemNumColIdx = Math.min(2, numCols - 1);
-    let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
-    if (perColIdx < 0) perColIdx = Math.min(5, numCols - 1);
-
-    // Build padded header labels
-    const headers = [];
-    for (let i = 0; i < numCols; i++) {
-      headers.push((headerRow[i] || '').trim() || (i === countColIdx ? 'On Hand' : ''));
-    }
-
-    return { headers, dataRows, countColIdx, itemNumColIdx, perColIdx, numCols, headerRowIdx };
-  }
+  const parseSection = parseInventorySection;
 
   // Build the tbody HTML rows for one section, tagged with data-pane-sec
   function buildRows(sec, p) {
