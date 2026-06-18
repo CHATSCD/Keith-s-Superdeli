@@ -386,7 +386,7 @@ async function switchDeliTab(container, tabId) {
       const p = parseInventorySection(sec);
       p.dataRows.forEach(r => {
         combined.push([
-          '',
+          p.categoryColIdx >= 0 ? (r[p.categoryColIdx] || '').trim() : '',
           (r[p.nameColIdx]   || '').trim(),
           (r[p.itemNumColIdx]|| '').trim(),
           '',
@@ -456,15 +456,22 @@ function buildItemMap(raw) {
     if (raw[i].some(c => /count.?by|item.?#/i.test(c||''))) { hdrIdx = i; break; }
   }
   const hdr = raw[hdrIdx] || [];
-  const nameCol  = hdr.findIndex(h => /^item$|^item.?name/i.test((h||'').trim()));
-  const numCol   = hdr.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
-  const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+  // Name/num/price columns vary by store — some sheets use the documented
+  // 'Item'/'Item#'/'Per' headers, others use a BEK-style export like
+  // 'BEK ITEM #' / 'PRODUCT DESCRIPTION' / 'PPU'. Match by substring, not
+  // exact equality, so either convention is recognized.
+  const nameCol  = hdr.findIndex(h => /item.?name|description|^desc$|^item$/i.test((h||'').trim()));
+  const numCol   = hdr.findIndex(h => /item.?#|item.?num|^sku$/i.test((h||'').trim()));
+  const perCol   = hdr.findIndex(h => /^per$|^cost$|^price$|ppu|per.?unit|unit.?price|unit.?cost/i.test((h||'').trim()));
   let sec = '';
   const items = [];
   raw.slice(hdrIdx + 1).forEach(r => {
     const colA = (r[0]||'').trim(); const colB = (r[1]||'').trim();
     const nonEmpty = r.filter(c=>(c||'').trim()).length;
     if (!colA && colB && nonEmpty <= 3) { sec = colB; return; }
+    // Some sheets carry the category/section in column A on every data row
+    // (rather than via sparse separator rows) — pick it up when present.
+    if (colA && nameCol !== 0 && numCol !== 0) sec = colA;
     const name = nameCol >= 0 ? (r[nameCol]||'').trim() : (r[1]||'').trim();
     const num  = numCol  >= 0 ? (r[numCol] ||'').trim() : (r[2]||'').trim();
     if (!name) return;
@@ -531,14 +538,22 @@ function parseInventorySection(sec) {
   for (let i = 0; i < dataRows.length; i++) { if (dataRows[i].length > numCols) numCols = dataRows[i].length; }
   if (numCols < 1) numCols = 7;
 
+  // Column names vary by store — some sheets use the documented
+  // 'Item'/'Item#'/'Per' headers, others use a BEK-style export like
+  // 'BEK ITEM #' / 'PRODUCT DESCRIPTION' / 'PPU'. Match by substring, not
+  // exact equality, so either convention is recognized.
   let countColIdx = headerRow.findIndex(h => /^on.?hand$/i.test((h||'').trim()));
   if (countColIdx < 0) countColIdx = Math.min(4, numCols - 1);
-  let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num/i.test((h||'').trim()));
+  let itemNumColIdx = headerRow.findIndex(h => /item.?#|item.?num|^sku$/i.test((h||'').trim()));
   if (itemNumColIdx < 0) itemNumColIdx = Math.min(2, numCols - 1);
-  let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$/i.test((h||'').trim()));
+  let perColIdx = headerRow.findIndex(h => /^per$|^cost$|^price$|ppu|per.?unit|unit.?price|unit.?cost/i.test((h||'').trim()));
   if (perColIdx < 0) perColIdx = Math.min(5, numCols - 1);
-  let nameColIdx = headerRow.findIndex(h => /^item$|item.?name|^description$|^desc$/i.test((h||'').trim()));
+  let nameColIdx = headerRow.findIndex(h => /item.?name|description|^desc$|^item$/i.test((h||'').trim()));
   if (nameColIdx < 0) nameColIdx = Math.min(1, numCols - 1);
+  // Some sheets carry a category/section label in an unlabeled leading
+  // column on every data row rather than a dedicated header.
+  let categoryColIdx = headerRow.findIndex(h => /count.?by|^category$|^section$/i.test((h||'').trim()));
+  if (categoryColIdx < 0 && nameColIdx !== 0 && itemNumColIdx !== 0) categoryColIdx = 0;
 
   // Build padded header labels
   const headers = [];
@@ -546,7 +561,7 @@ function parseInventorySection(sec) {
     headers.push((headerRow[i] || '').trim() || (i === countColIdx ? 'On Hand' : ''));
   }
 
-  return { headers, dataRows, nameColIdx, countColIdx, itemNumColIdx, perColIdx, numCols, headerRowIdx };
+  return { headers, dataRows, nameColIdx, countColIdx, itemNumColIdx, perColIdx, categoryColIdx, numCols, headerRowIdx };
 }
 
 function renderCountSheetSections(content, sections) {
