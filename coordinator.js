@@ -147,12 +147,78 @@ async function coordinatorInit(container, serviceAccount) {
   initCoordTransferForms(serviceAccount);
 }
 
+let coordItemPriceByName = {};
+
+// Load the item + price catalog from Store #60's count sheet (Deli / Branded Deli / Fountain
+// tabs) to power the description dropdowns on the coordinator's Transfer & Bring-In forms.
+async function loadCoordItemCatalog(sa) {
+  const statusEl = document.getElementById('coord-item-catalog-status');
+  const refStore = (typeof STORES !== 'undefined') ? STORES['60'] : null;
+  const sheetId  = refStore && (refStore.countSheetId || refStore.sheetId);
+  if (!sheetId) {
+    if (statusEl) statusEl.textContent = 'Store #60 count sheet not configured — type item names manually.';
+    return;
+  }
+
+  const SECTION_TABS = ['Deli', 'Branded Deli', 'Fountain'];
+  const TAB_ALIASES = {
+    'Deli':         ['Deli', 'DELI', 'Deli Counter', 'Deli Items', 'Deli Inventory'],
+    'Branded Deli': ['Branded Deli', 'BRANDED DELI', 'Branded', 'Hunt Brothers', 'HB'],
+    'Fountain':     ['Fountain', 'FOUNTAIN', 'Beverage', 'Beverages', 'Beverage Station', 'Icee', 'ICEE'],
+  };
+
+  try {
+    const sections = await Promise.all(SECTION_TABS.map(async tabName => {
+      const aliases = TAB_ALIASES[tabName] || [tabName];
+      for (const name of aliases) {
+        try {
+          const res = await sheetsGet(sa, sheetId, `${name}!A1:Z1000`);
+          if (res.values && res.values.length > 0) return { rows: res.values };
+        } catch (_) { /* try next alias */ }
+      }
+      return { rows: [] };
+    }));
+
+    const items = [];
+    sections.forEach(sec => {
+      const p = parseInventorySection(sec);
+      p.dataRows.forEach(r => {
+        const name = (r[p.nameColIdx] || '').trim();
+        if (!name) return;
+        const price = parseFloat(r[p.perColIdx]) || 0;
+        items.push({ name, price });
+      });
+    });
+
+    const seen = new Set();
+    coordItemPriceByName = {};
+    const optionsHTML = items
+      .filter(i => { const k = i.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(i => { coordItemPriceByName[i.name.toLowerCase()] = i.price; return `<option value="${i.name}">`; })
+      .join('');
+
+    const datalist = document.getElementById('coord-item-catalog');
+    if (datalist) datalist.innerHTML = optionsHTML;
+
+    if (statusEl) {
+      statusEl.textContent = seen.size
+        ? `${seen.size} items loaded from Store #60's count sheet — start typing in Description to pick one (price auto-fills).`
+        : "No items found on Store #60's count sheet.";
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Could not load item catalog: ${err.message}`;
+  }
+}
+
 function initCoordTransferForms(sa) {
   const transferBlock = document.getElementById('coord-transfer-block');
   const bringinBlock  = document.getElementById('coord-bringin-block');
   const typeTransferBtn = document.getElementById('coord-tf-type-transfer');
   const typeBringinBtn  = document.getElementById('coord-tf-type-bringin');
   if (!transferBlock) return;
+
+  loadCoordItemCatalog(sa);
 
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('ctf-date').value = today;
@@ -169,6 +235,18 @@ function initCoordTransferForms(sa) {
     bringinBlock.style.display  = '';
     typeTransferBtn.className = 'btn btn-ghost btn-sm';
     typeBringinBtn.className  = 'btn btn-primary btn-sm';
+  });
+
+  // ── Transfer: item picked from catalog → auto-fill cost ──
+  document.getElementById('ctf-table').addEventListener('input', e => {
+    if (!e.target.classList.contains('ctf-desc')) return;
+    const row = e.target.closest('tr');
+    const price = coordItemPriceByName[e.target.value.trim().toLowerCase()];
+    const costInput = row?.querySelector('.ctf-cost');
+    if (price && costInput && !costInput.value) {
+      costInput.value = price.toFixed(2);
+      costInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   });
 
   // ── Transfer: auto-calc extended cost/retail ──
@@ -252,6 +330,18 @@ function initCoordTransferForms(sa) {
       rows: lines.map(l => [date, l.dept, l.qty, l.desc, l.cost, l.extCost, l.sRetail, l.sExtRetail, l.rRetail, l.rExtRetail]),
       signatures: ['Transferring Manager Signature', 'Receiving Manager Signature', 'District Manager Signature'],
     });
+  });
+
+  // ── Bring In / ICF: item picked from catalog → auto-fill unit cost ──
+  document.getElementById('cbi-table').addEventListener('input', e => {
+    if (!e.target.classList.contains('cbi-desc')) return;
+    const row = e.target.closest('tr');
+    const price = coordItemPriceByName[e.target.value.trim().toLowerCase()];
+    const costInput = row?.querySelector('.cbi-ucost');
+    if (price && costInput && !costInput.value) {
+      costInput.value = price.toFixed(2);
+      costInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   });
 
   // ── Bring In / ICF: auto-calc totals ──
@@ -511,6 +601,8 @@ function buildCoordinatorShell() {
         <button class="btn btn-primary btn-sm" id="coord-tf-type-transfer">Merchandise Transfer</button>
         <button class="btn btn-ghost btn-sm" id="coord-tf-type-bringin">Bring In (ICF)</button>
       </div>
+      <div id="coord-item-catalog-status" style="font-size:12px;color:var(--muted);margin-bottom:10px">Loading item catalog from Store #60's count sheet…</div>
+      <datalist id="coord-item-catalog"></datalist>
 
       <!-- Merchandise Transfer block -->
       <div id="coord-transfer-block">
@@ -542,7 +634,7 @@ function buildCoordinatorShell() {
               <tr>
                 <td style="padding:3px 4px"><input type="text" class="ctf-dept" style="width:56px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-qty" min="0" step="1" style="width:48px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
-                <td style="padding:3px 4px"><input type="text" class="ctf-desc" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+                <td style="padding:3px 4px"><input type="text" class="ctf-desc" list="coord-item-catalog" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-cost" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><span class="ctf-extcost" style="display:inline-block;min-width:68px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-sretail" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
@@ -586,7 +678,7 @@ function buildCoordinatorShell() {
             <tbody>${Array.from({length: 20}, () => `
               <tr>
                 <td style="padding:3px 4px"><input type="number" class="cbi-qty" min="0" step="1" style="width:52px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
-                <td style="padding:3px 4px"><input type="text" class="cbi-desc" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+                <td style="padding:3px 4px"><input type="text" class="cbi-desc" list="coord-item-catalog" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="text" class="cbi-dept" style="width:60px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="cbi-ucost" min="0" step="0.01" style="width:80px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><span class="cbi-tcost" style="display:inline-block;min-width:80px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
