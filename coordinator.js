@@ -294,6 +294,16 @@ function initCoordTransferForms(sa) {
     row.querySelector('.ctf-extcost').textContent    = qty && cost ? '$' + (qty*cost).toFixed(2) : '';
     row.querySelector('.ctf-sextretail').textContent = qty && sret ? '$' + (qty*sret).toFixed(2) : '';
     row.querySelector('.ctf-rextretail').textContent = qty && rret ? '$' + (qty*rret).toFixed(2) : '';
+
+    let totalExtCost = 0, totalSExtRetail = 0, totalRExtRetail = 0;
+    document.querySelectorAll('#ctf-table tbody tr').forEach(r => {
+      totalExtCost    += parseFloat(r.querySelector('.ctf-extcost')?.textContent?.replace('$',''))    || 0;
+      totalSExtRetail += parseFloat(r.querySelector('.ctf-sextretail')?.textContent?.replace('$',''))  || 0;
+      totalRExtRetail += parseFloat(r.querySelector('.ctf-rextretail')?.textContent?.replace('$',''))  || 0;
+    });
+    document.getElementById('ctf-total-extcost').textContent    = '$' + totalExtCost.toFixed(2);
+    document.getElementById('ctf-total-sextretail').textContent = '$' + totalSExtRetail.toFixed(2);
+    document.getElementById('ctf-total-rextretail').textContent = '$' + totalRExtRetail.toFixed(2);
   });
 
   function collectTransferLines() {
@@ -357,11 +367,18 @@ function initCoordTransferForms(sa) {
     const fromNum = document.getElementById('ctf-from-store').value;
     const toNum   = document.getElementById('ctf-to-store').value;
     const lines = collectTransferLines();
+    let totalExtCost = 0, totalSExtRetail = 0, totalRExtRetail = 0;
+    lines.forEach(l => {
+      totalExtCost    += parseFloat((l.extCost||'').replace('$',''))    || 0;
+      totalSExtRetail += parseFloat((l.sExtRetail||'').replace('$',''))  || 0;
+      totalRExtRetail += parseFloat((l.rExtRetail||'').replace('$',''))  || 0;
+    });
     printTransferOrBringIn({
       title: 'Merchandise Transfer',
       topFields: [`Transferring Store #: ${fromNum || '_______'}`, `Receiving Store #: ${toNum || '_______'}`],
       headers: ['Date','Dept','Qty','Item Description','Cost','Extended Cost','Transferring Store Retail','Transferring Store Extended Retail','Receiving Store Retail','Receiving Store Extended Retail'],
       rows: lines.map(l => [date, l.dept, l.qty, l.desc, l.cost, l.extCost, l.sRetail, l.sExtRetail, l.rRetail, l.rExtRetail]),
+      totalsRow: ['', '', '', 'Totals:', '', '$' + totalExtCost.toFixed(2), '', '$' + totalSExtRetail.toFixed(2), '', '$' + totalRExtRetail.toFixed(2)],
       signatures: ['Transferring Manager Signature', 'Receiving Manager Signature', 'District Manager Signature'],
     });
   });
@@ -463,12 +480,15 @@ function initCoordTransferForms(sa) {
   });
 }
 
-function printTransferOrBringIn({ title, topFields, headers, rows, signatures, footerNote }) {
+function printTransferOrBringIn({ title, topFields, headers, rows, signatures, footerNote, totalsRow }) {
   const win = window.open('', '_blank');
   if (!win) { alert('Pop-up blocked. Allow pop-ups to print.'); return; }
   const rowsHTML = rows.length
     ? rows.map(r => `<tr>${r.map(c => `<td>${c || ''}</td>`).join('')}</tr>`).join('')
     : `<tr><td colspan="${headers.length}" style="text-align:center;color:#888">No items entered.</td></tr>`;
+  const totalsHTML = totalsRow
+    ? `<tfoot><tr>${totalsRow.map(c => `<td style="font-weight:700">${c || ''}</td>`).join('')}</tr></tfoot>`
+    : '';
   win.document.write(`
     <html>
     <head>
@@ -480,6 +500,7 @@ function printTransferOrBringIn({ title, topFields, headers, rows, signatures, f
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid #999; padding: 5px 7px; text-align: left; }
         th { background: #1a2744; color: #fff; }
+        tfoot td { border-top: 2px solid #1a1a1a; }
         .footer-note { margin-top: 14px; font-size: 13px; }
         .sig-block { margin-top: 36px; display: flex; gap: 40px; flex-wrap: wrap; }
         .sig-line { flex: 1; min-width: 220px; border-top: 1px solid #1a1a1a; padding-top: 6px; font-size: 12px; }
@@ -491,6 +512,7 @@ function printTransferOrBringIn({ title, topFields, headers, rows, signatures, f
       <table>
         <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
         <tbody>${rowsHTML}</tbody>
+        ${totalsHTML}
       </table>
       ${footerNote ? `<div class="footer-note">${footerNote}</div>` : ''}
       ${signatures && signatures.length ? `<div class="sig-block">${signatures.map(s => `<div class="sig-line">${s}</div>`).join('')}</div>` : ''}
@@ -675,6 +697,14 @@ function buildCoordinatorShell() {
                 <td style="padding:3px 4px"><input type="number" class="ctf-rretail" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><span class="ctf-rextretail" style="display:inline-block;min-width:68px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
               </tr>`).join('')}</tbody>
+            <tfoot><tr>
+              <td colspan="4" style="text-align:right;font-weight:700;padding:6px 10px">Totals:</td>
+              <td style="padding:6px 10px"><span id="ctf-total-extcost" style="font-weight:700">$0.00</span></td>
+              <td></td>
+              <td style="padding:6px 10px"><span id="ctf-total-sextretail" style="font-weight:700">$0.00</span></td>
+              <td></td>
+              <td style="padding:6px 10px"><span id="ctf-total-rextretail" style="font-weight:700">$0.00</span></td>
+            </tr></tfoot>
           </table>
         </div>
 
