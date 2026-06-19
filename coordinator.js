@@ -148,6 +148,43 @@ async function coordinatorInit(container, serviceAccount) {
 }
 
 let coordItemPriceByName = {};
+let coordItemNames = [];
+
+// Lightweight custom autocomplete (native <datalist> dropdowns don't render reliably in
+// Safari/iOS Safari, which is most of the floor traffic for this app).
+function attachItemAutocomplete(input) {
+  input.setAttribute('autocomplete', 'off');
+  let box = null;
+  function close() { if (box) { box.remove(); box = null; } }
+  function show() {
+    const q = input.value.trim().toLowerCase();
+    close();
+    if (!q || coordItemNames.length === 0) return;
+    const matches = coordItemNames.filter(n => n.toLowerCase().includes(q)).slice(0, 8);
+    if (matches.length === 0) return;
+    const rect = input.getBoundingClientRect();
+    box = document.createElement('div');
+    box.style.cssText = `position:fixed;z-index:999;left:${rect.left}px;top:${rect.bottom}px;width:${Math.max(rect.width,180)}px;background:#fff;border:1.5px solid var(--gray);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);max-height:180px;overflow-y:auto;font-size:13px;`;
+    matches.forEach(name => {
+      const opt = document.createElement('div');
+      opt.textContent = name;
+      opt.style.cssText = 'padding:7px 10px;cursor:pointer';
+      opt.addEventListener('mouseenter', () => opt.style.background = '#f0f0f0');
+      opt.addEventListener('mouseleave', () => opt.style.background = '');
+      opt.addEventListener('mousedown', e => {
+        e.preventDefault();
+        input.value = name;
+        close();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      box.appendChild(opt);
+    });
+    document.body.appendChild(box);
+  }
+  input.addEventListener('input', show);
+  input.addEventListener('focus', show);
+  input.addEventListener('blur', () => setTimeout(close, 150));
+}
 
 // Load the item + price catalog from Store #60's count sheet (Deli / Branded Deli / Fountain
 // tabs) to power the description dropdowns on the coordinator's Transfer & Bring-In forms.
@@ -192,14 +229,10 @@ async function loadCoordItemCatalog(sa) {
 
     const seen = new Set();
     coordItemPriceByName = {};
-    const optionsHTML = items
+    coordItemNames = items
       .filter(i => { const k = i.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(i => { coordItemPriceByName[i.name.toLowerCase()] = i.price; return `<option value="${i.name}">`; })
-      .join('');
-
-    const datalist = document.getElementById('coord-item-catalog');
-    if (datalist) datalist.innerHTML = optionsHTML;
+      .map(i => { coordItemPriceByName[i.name.toLowerCase()] = i.price; return i.name; });
 
     if (statusEl) {
       statusEl.textContent = seen.size
@@ -219,6 +252,7 @@ function initCoordTransferForms(sa) {
   if (!transferBlock) return;
 
   loadCoordItemCatalog(sa);
+  document.querySelectorAll('.ctf-desc, .cbi-desc').forEach(attachItemAutocomplete);
 
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('ctf-date').value = today;
@@ -602,7 +636,6 @@ function buildCoordinatorShell() {
         <button class="btn btn-ghost btn-sm" id="coord-tf-type-bringin">Bring In (ICF)</button>
       </div>
       <div id="coord-item-catalog-status" style="font-size:12px;color:var(--muted);margin-bottom:10px">Loading item catalog from Store #60's count sheet…</div>
-      <datalist id="coord-item-catalog"></datalist>
 
       <!-- Merchandise Transfer block -->
       <div id="coord-transfer-block">
@@ -634,7 +667,7 @@ function buildCoordinatorShell() {
               <tr>
                 <td style="padding:3px 4px"><input type="text" class="ctf-dept" style="width:56px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-qty" min="0" step="1" style="width:48px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
-                <td style="padding:3px 4px"><input type="text" class="ctf-desc" list="coord-item-catalog" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+                <td style="padding:3px 4px"><input type="text" class="ctf-desc" placeholder="type to search items…" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-cost" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><span class="ctf-extcost" style="display:inline-block;min-width:68px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
                 <td style="padding:3px 4px"><input type="number" class="ctf-sretail" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
@@ -678,7 +711,7 @@ function buildCoordinatorShell() {
             <tbody>${Array.from({length: 20}, () => `
               <tr>
                 <td style="padding:3px 4px"><input type="number" class="cbi-qty" min="0" step="1" style="width:52px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
-                <td style="padding:3px 4px"><input type="text" class="cbi-desc" list="coord-item-catalog" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
+                <td style="padding:3px 4px"><input type="text" class="cbi-desc" placeholder="type to search items…" style="width:100%;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="text" class="cbi-dept" style="width:60px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><input type="number" class="cbi-ucost" min="0" step="0.01" style="width:80px;padding:4px 6px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center;background:var(--white)"></td>
                 <td style="padding:3px 4px"><span class="cbi-tcost" style="display:inline-block;min-width:80px;font-weight:600;font-size:13px;padding:4px 6px"></span></td>
