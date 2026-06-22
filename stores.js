@@ -58,7 +58,7 @@ const COUNT_SHEET_IDS = {
   '157': '17FNJACyBCOnmKyQyHH0P0LCF8nSHVt7w7qTJ4W8SvK0',
   '173': '1BxBA2Isdxd4SNUCLENcNIOml2oqncszfGBnScF_ADaY',
   '175': '1zX-5DsoytY53_nBkHYv_jcyEyVJgPopQ4FOreVMU2xg',
-  '194': '1jtsEz43d1HaHNiVbI6wKqMaqg40v1yN-4VVnIi2bpCI',
+  '194': '1VQ7P_prLSgZZd5S_CA9uZ3M4iv9m9une6UYFsK5sr84',
 };
 
 // Store number -> Google Sheet ID
@@ -104,7 +104,7 @@ const SHEET_IDS = {
   '184': '1x2IWC4CDWkSv-GzH2HlPhZ8sK7_XG7D7xzeEBiQWiU0',
   '185': '1p79KwMjvhqugHjIjomSr2pXTj3okSVkFIT99XkV-CkA',
   '192': '1Q8fRtali0B0iLLF7vfKVOuAQWNTtR6zyTYY3twV_SnM',
-  '194': '1F27bcIZVGUXjW341ehNVOkamhPQohO5aJstLqdpi5Zw',
+  '194': '1VQ7P_prLSgZZd5S_CA9uZ3M4iv9m9une6UYFsK5sr84',
   '196': '1DFW6TZpLDBHwK7VQB48bvGjYDE6EpjQQwGmXFfwVDvo',
 };
 
