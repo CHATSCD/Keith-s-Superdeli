@@ -785,6 +785,80 @@ function renderCountSheetSections(content, sections) {
 // COUNT SHEET (native display, no conversion)
 // ════════════════════════════════════════
 
+// ── Voice Count helpers ──
+const VOICE_NUMBER_WORDS = {
+  zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
+  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,
+  eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,
+  eighty:80,ninety:90,
+};
+
+function voiceWordsToNumber(tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    const w = tokens[i].replace(/[^a-z]/g, '');
+    if (VOICE_NUMBER_WORDS[w] === undefined) continue;
+    let val = VOICE_NUMBER_WORDS[w];
+    const next = (tokens[i + 1] || '').replace(/[^a-z]/g, '');
+    if (val >= 20 && val % 10 === 0 && VOICE_NUMBER_WORDS[next] !== undefined && VOICE_NUMBER_WORDS[next] < 10) {
+      return { value: val + VOICE_NUMBER_WORDS[next], index: i, count: 2 };
+    }
+    return { value: val, index: i, count: 1 };
+  }
+  return null;
+}
+
+const VOICE_FILLER_RE = /\b(on hand|in stock|left|remaining|we have|i have|there's|there are|got|count|cases? of|boxes? of|units? of|of|is|are|the)\b/gi;
+
+// Pulls a quantity and the remaining item phrase out of a transcribed sentence,
+// e.g. "mozzarella twelve on hand" -> { qty: 12, itemText: "mozzarella" }
+function parseVoiceCount(transcript) {
+  const text = (transcript || '').trim();
+  let qty = null;
+  let itemText = text;
+
+  const digitMatch = text.match(/\d+(\.\d+)?/);
+  if (digitMatch) {
+    qty = parseFloat(digitMatch[0]);
+    itemText = (text.slice(0, digitMatch.index) + ' ' + text.slice(digitMatch.index + digitMatch[0].length)).trim();
+  } else {
+    const tokens = text.split(/\s+/);
+    const wordNum = voiceWordsToNumber(tokens);
+    if (wordNum) {
+      qty = wordNum.value;
+      tokens.splice(wordNum.index, wordNum.count);
+      itemText = tokens.join(' ');
+    }
+  }
+
+  itemText = itemText.replace(VOICE_FILLER_RE, ' ').replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  return { qty, itemText: itemText || text };
+}
+
+function voiceNormalize(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Ranks inventory rows against a spoken item phrase using simple token-overlap scoring
+// (no dependency needed — good enough to disambiguate a short deli item list).
+function fuzzyMatchItems(query, searchIndex, topN = 3) {
+  const qNorm = voiceNormalize(query);
+  if (!qNorm) return [];
+  const qTokens = qNorm.split(' ').filter(Boolean);
+
+  const scored = searchIndex.map(entry => {
+    const tNorm = voiceNormalize(entry.itemName);
+    const tTokens = tNorm.split(' ').filter(Boolean);
+    let hits = 0;
+    qTokens.forEach(qt => { if (tTokens.some(tt => tt.includes(qt) || qt.includes(tt))) hits++; });
+    let score = qTokens.length ? hits / qTokens.length : 0;
+    if (tNorm.includes(qNorm)) score += 0.5;
+    if (entry.itemNum && qNorm.replace(/\s/g, '') === entry.itemNum.toLowerCase().replace(/\s/g, '')) score += 2;
+    return Object.assign({}, entry, { score });
+  });
+
+  return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, topN);
+}
+
 function renderCountSheet(content, raw) {
   if (!raw || raw.length === 0) {
     content.innerHTML = '<div class="empty-state"><p>Count sheet is empty.</p></div>';
@@ -862,6 +936,7 @@ function renderCountSheet(content, raw) {
   // ── Build all rows, tagging each with its detected section ──
   let activeSec = 'all';
   const outCount = { all: 0, deli: 0, branded: 0, beverage: 0 };
+  const searchIndex = []; // for Voice Count fuzzy matching: { sheetRow, itemName, itemNum, colIdx }
 
   const rowsHTML = dataRows.map((r, dataIdx) => {
     const sheetRow = headerRowIdx + 2 + dataIdx;
@@ -886,6 +961,9 @@ function renderCountSheet(content, raw) {
     const isOut = statusColIdx >= 0 && /^out$/i.test((r[statusColIdx] || '').trim());
     if (isOut) { outCount.all++; if (outCount[activeSec] !== undefined) outCount[activeSec]++; }
 
+    const itemNum = (r[itemNumColIdx] || '').trim();
+    if (colB) searchIndex.push({ sheetRow, itemName: colB, itemNum, colIdx: countColIdx });
+
     const cells = headers.map((h, i) => {
       if (h === null) return '';
       const val = (r[i] || '').trim();
@@ -899,7 +977,6 @@ function renderCountSheet(content, raw) {
       return `<td>${val}</td>`;
     }).join('');
 
-    const itemNum  = (r[itemNumColIdx] || '').trim();
     const purchCell = `<td style="padding:3px 5px;text-align:center"><input type="checkbox" class="cs-purch-chk" data-cs-row="${sheetRow}" data-item-num="${itemNum}" data-per-col="${perColIdx}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--ks-blue)"></td>`;
     return `<tr data-sec="${activeSec}">${cells}${purchCell}</tr>`;
   }).join('');
@@ -927,6 +1004,7 @@ function renderCountSheet(content, raw) {
           <button class="btn btn-ghost btn-sm" id="inv-voice-search-btn" style="font-size:16px" title="Voice search items">🎤 Find Item</button>
           <button class="btn btn-ghost btn-sm" id="imperial-price-btn">🔄 Update Imperial Prices</button>
           <button class="btn btn-ghost btn-sm" id="bek-upload-btn">📤 Upload BEK Prices</button>
+          <button class="btn btn-ghost btn-sm" id="voice-count-btn">🎤 Voice Count</button>
           <button class="btn btn-primary btn-sm" id="save-all-counts-btn">💾 Save Count &amp; Update Purchased Prices</button>
         </span>
       </div>
@@ -943,6 +1021,20 @@ function renderCountSheet(content, raw) {
           <button class="btn btn-ghost btn-sm" id="bek-cancel-btn">Cancel</button>
         </div>
         <div id="bek-upload-status" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
+      <!-- Voice Count panel -->
+      <div id="voice-count-panel" style="display:none;background:var(--bg);border-radius:8px;padding:14px;margin-bottom:12px;border:1.5px solid var(--gray)">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">Voice Count</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Tap the mic, say the item and quantity (e.g. "mozzarella, twelve"), then confirm the match below.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="voice-rec-btn">🎤 Tap to Record</button>
+          <button class="btn btn-ghost btn-sm" id="voice-close-btn">Close</button>
+        </div>
+        <div id="voice-status" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+        <div id="voice-matches" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
       </div>
 
       <!-- Section sub-tabs -->
@@ -1180,6 +1272,133 @@ function renderCountSheet(content, raw) {
       saveAllBtn.disabled = false;
       saveAllBtn.textContent = '💾 Save Count & Update Purchased Prices';
     }
+  });
+
+  // ── Voice Count ──
+  const voiceBtn       = content.querySelector('#voice-count-btn');
+  const voicePanel      = content.querySelector('#voice-count-panel');
+  const voiceCloseBtn   = content.querySelector('#voice-close-btn');
+  const voiceRecBtn     = content.querySelector('#voice-rec-btn');
+  const voiceStatus     = content.querySelector('#voice-status');
+  const voiceMatchesEl  = content.querySelector('#voice-matches');
+
+  let voiceMediaRecorder = null;
+  let voiceMediaChunks   = [];
+  let voiceMediaStream   = null;
+  let voiceRecExt        = 'webm';
+
+  const stopVoiceRecording = () => {
+    if (voiceMediaRecorder && voiceMediaRecorder.state === 'recording') voiceMediaRecorder.stop();
+  };
+
+  voiceBtn.addEventListener('click', () => {
+    voicePanel.style.display = voicePanel.style.display === 'none' ? '' : 'none';
+  });
+  voiceCloseBtn.addEventListener('click', () => {
+    voicePanel.style.display = 'none';
+    stopVoiceRecording();
+  });
+
+  voiceRecBtn.addEventListener('click', async () => {
+    if (voiceMediaRecorder && voiceMediaRecorder.state === 'recording') {
+      voiceMediaRecorder.stop();
+      return;
+    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      voiceStatus.innerHTML = '<span style="color:var(--red)">Voice recording is not supported in this browser.</span>';
+      return;
+    }
+
+    voiceMatchesEl.innerHTML = '';
+    voiceStatus.textContent = '';
+
+    try {
+      voiceMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      voiceStatus.innerHTML = `<span style="color:var(--red)">Microphone access denied: ${err.message}</span>`;
+      return;
+    }
+
+    const mimeCandidates = ['audio/webm', 'audio/mp4', 'audio/ogg'];
+    const supported = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m));
+    voiceRecExt = supported === 'audio/mp4' ? 'mp4' : supported === 'audio/ogg' ? 'ogg' : 'webm';
+    voiceMediaRecorder = supported ? new MediaRecorder(voiceMediaStream, { mimeType: supported }) : new MediaRecorder(voiceMediaStream);
+    voiceMediaChunks = [];
+
+    voiceMediaRecorder.addEventListener('dataavailable', e => { if (e.data.size > 0) voiceMediaChunks.push(e.data); });
+
+    voiceMediaRecorder.addEventListener('stop', async () => {
+      voiceMediaStream.getTracks().forEach(t => t.stop());
+      voiceRecBtn.textContent = '🎤 Tap to Record';
+      voiceRecBtn.style.background = '';
+
+      const blob = new Blob(voiceMediaChunks, { type: voiceMediaRecorder.mimeType || 'audio/webm' });
+      if (blob.size === 0) { voiceStatus.innerHTML = '<span style="color:var(--red)">No audio captured — try again.</span>'; return; }
+
+      voiceStatus.innerHTML = '<span style="color:var(--muted)">Transcribing…</span>';
+      try {
+        const resp = await fetch(`/api/transcribe?ext=${voiceRecExt}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: blob,
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Transcription failed.');
+        if (!data.text || !data.text.trim()) {
+          voiceStatus.innerHTML = '<span style="color:var(--amber)">Didn’t catch that — try again.</span>';
+          return;
+        }
+        voiceStatus.innerHTML = `<span style="color:var(--muted)">Heard: "${data.text.trim()}"</span>`;
+
+        const { qty, itemText } = parseVoiceCount(data.text);
+        const matches = fuzzyMatchItems(itemText, searchIndex, 3);
+        if (matches.length === 0) {
+          voiceMatchesEl.innerHTML = '<div style="font-size:13px;color:var(--amber)">No matching items found. Try again with a clearer item name.</div>';
+          return;
+        }
+
+        voiceMatchesEl.innerHTML = matches.map((m, i) => `
+          <div style="display:flex;align-items:center;gap:8px;background:var(--white);border:1.5px solid var(--gray);border-radius:8px;padding:8px 10px;flex-wrap:wrap">
+            <span style="font-weight:600;flex:1;min-width:120px">${m.itemName}${m.itemNum ? ` <span style="color:var(--muted);font-weight:400;font-size:12px">#${m.itemNum}</span>` : ''}</span>
+            <input type="number" class="voice-qty-input" data-row="${i}" value="${qty != null ? qty : ''}" min="0" step="0.01" style="width:70px;padding:5px 8px;border:1.5px solid var(--gray);border-radius:6px;font-size:13px;text-align:center">
+            <button class="btn btn-primary btn-sm voice-apply-btn" data-row="${i}" data-sheet-row="${m.sheetRow}" data-col-idx="${m.colIdx}">✓ Apply</button>
+          </div>
+        `).join('');
+
+        voiceMatchesEl.querySelectorAll('.voice-apply-btn').forEach(applyBtn => {
+          applyBtn.addEventListener('click', async () => {
+            const rowIdx   = applyBtn.dataset.row;
+            const qtyInput = voiceMatchesEl.querySelector(`.voice-qty-input[data-row="${rowIdx}"]`);
+            const val      = qtyInput.value;
+            if (val === '') return;
+            const matchSheetRow = applyBtn.dataset.sheetRow;
+            const colIdx        = parseInt(applyBtn.dataset.colIdx, 10);
+            const colLetter     = String.fromCharCode(65 + colIdx);
+            const saveSheetId   = deliState.countSheetId || deliState.sheetId;
+            const saveTabPrefix = deliState.countSheetId ? '' : 'Inventory!';
+
+            applyBtn.disabled = true; applyBtn.textContent = 'Saving…';
+            try {
+              await sheetsUpdate(deliState.sa, saveSheetId, `${saveTabPrefix}${colLetter}${matchSheetRow}`, [[val]]);
+              const domInput = content.querySelector(`.cs-count-input[data-cs-row="${matchSheetRow}"]`);
+              if (domInput) { domInput.value = val; domInput.style.borderColor = 'var(--green)'; }
+              applyBtn.textContent = '✓ Saved';
+              setTimeout(() => { voiceStatus.textContent = ''; voiceMatchesEl.innerHTML = ''; }, 1200);
+            } catch (err) {
+              applyBtn.disabled = false; applyBtn.textContent = '✓ Apply';
+              voiceStatus.innerHTML = `<span style="color:var(--red)">Save failed: ${err.message}</span>`;
+            }
+          });
+        });
+      } catch (err) {
+        voiceStatus.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+      }
+    });
+
+    voiceMediaRecorder.start();
+    voiceRecBtn.textContent = '⏹ Stop & Process';
+    voiceRecBtn.style.background = 'var(--red)';
+    voiceStatus.innerHTML = '<span style="color:var(--muted)">Listening… tap again to stop.</span>';
   });
 }
 
