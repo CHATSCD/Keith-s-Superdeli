@@ -49,8 +49,8 @@ const STORE_NAMES = {
 // (originally shared by Theresa Holifield, May 2026).
 // Store 127 (Collins) intentionally excluded per coordinator instruction.
 const COUNT_SHEET_IDS = {
-  '60':  '1eGse-kalezUhOzhXxla1mJxAAcLula64iGOiaeff0Hs',
-  '82':  '1zeoB03u7qRaouRhgT-wYKlh-B5-rRyffJ6ZhkZ06dvc',
+  '60':  '1UBlSm__qc1YyM16SedWuecdv586WGI64k4IGwOUIUh0',
+  '82':  '1KhzGSgdnMoubQVq1QHwDNeGhxc8os2RuhNYChkO2Fuc',
   '109': '1DLoZvAS6tlsmXZ3NfYYK-RaL_Salg0EBRHCl0empMA4',
   '112': '1gRZp3lyOdASKSa7iqyEM3_xKyUuQr7UBH542sHZBFrc',
   '140': '1guVTZbcgJSJ4ne17ly18g6yCCBLWWF2mcGPdrdnB9lo',
@@ -65,10 +65,10 @@ const COUNT_SHEET_IDS = {
 // Sourced from "Deli Pro — Keith's Superstore" sheets in Google Drive ("Keith's" folder).
 const SHEET_IDS = {
   '59':  '1jtr6ImbWYKlJlWS3vOODLXMIPNWciLLIC8jwWf9-Ndg',
-  '60':  '1eGse-kalezUhOzhXxla1mJxAAcLula64iGOiaeff0Hs',
+  '60':  '1UBlSm__qc1YyM16SedWuecdv586WGI64k4IGwOUIUh0',
   '80':  '1J7xGEkQeTRr-UjAaw_hVDPq9E5PQMaUhd6bpwLCEHvQ',
   '81':  '11eixrFbRojOKxeU4s4ZRfvzbeVIn3AlfskW2BXMDtHQ',
-  '82':  '1K8QX_aMSec-wmTfegbgi0MBnKvRpWOJ67QGatIlQYi8',
+  '82':  '1KhzGSgdnMoubQVq1QHwDNeGhxc8os2RuhNYChkO2Fuc',
   '85':  '1pTij0oEbpwCQS6BnecuJix3IyOpASiD2SXnCE9dzPNE',
   '86':  '1m-rVmia4iQDN72ZerpCD4xPVHQOPAy0NypyTwqONSNk',
   '88':  '1UC7jiKNq2HEs1BSb5by0GASd3E8FaLTXDG6Mj124rr0',
